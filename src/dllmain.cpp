@@ -28,12 +28,37 @@ std::wstring Unquote(std::wstring s) {
     return s;
 }
 
+// Load probe: if load_trace.log already exists next to the DLL, append the
+// loading process to it. Kernel32 only, so it is safe under the loader lock;
+// shows whether a host loads the DLL at all, before any COM call.
+void LogLoadIfEnabled(HMODULE module) {
+    wchar_t path[MAX_PATH];
+    DWORD n = GetModuleFileNameW(module, path, MAX_PATH);
+    while (n && path[n - 1] != L'\\') --n;
+    if (!n || n + 16 >= MAX_PATH) return;
+    lstrcpyW(path + n, L"load_trace.log");
+    HANDLE f = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return;
+    char line[MAX_PATH * 3 + 32];
+    wchar_t exe[MAX_PATH];
+    GetModuleFileNameW(nullptr, exe, MAX_PATH);
+    int len = wsprintfA(line, "attach pid=%lu ", GetCurrentProcessId());
+    len += WideCharToMultiByte(CP_UTF8, 0, exe, -1, line + len, static_cast<int>(sizeof(line)) - len - 3, nullptr,
+                               nullptr) - 1;
+    line[len++] = '\r';
+    line[len++] = '\n';
+    DWORD written = 0;
+    WriteFile(f, line, static_cast<DWORD>(len), &written, nullptr);
+    CloseHandle(f);
+}
+
 }  // namespace
 
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
     if (reason == DLL_PROCESS_ATTACH) {
         g_hInst = module;
         DisableThreadLibraryCalls(module);
+        LogLoadIfEnabled(module);
     }
     return TRUE;
 }

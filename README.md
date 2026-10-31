@@ -41,6 +41,12 @@ PluginPropertiesSetup.exe /install | /uninstall  [/allusers] [/quiet]
 `/allusers` installs into Program Files and registers under HKLM (asks for
 elevation).
 
+Run setup from Explorer or a normal terminal. A process started from inside a
+packaged (MSIX) app, such as a terminal in the Claude desktop app, gets a
+private copy of `HKCU`, so the registration lands where Explorer never looks.
+The install then appears to succeed and tests run from that same app pass, but
+the menu entry never shows up.
+
 On Windows 11 the entry is in the classic menu (**Show more options** or
 Shift+right-click). Getting into the new top-level menu needs an
 `IExplorerCommand` handler plus a signed sparse MSIX package, which this
@@ -77,8 +83,10 @@ rundll32 build\bin\PluginProperties.dll,Snapshot "C:\path\to\Plugin.esp" "C:\out
 wraps it). `regsvr32 build\bin\PluginProperties.dll` registers the build output
 for the current user (`/u` to undo).
 
-Set `PLUGINPROPS_LOG=C:\some\file.log` in a process's environment to trace the
-handler's calls inside it.
+Set `PLUGINPROPS_LOG=C:\some\file.log` in a process's environment, or the
+registry value `HKCU\Software\PluginProperties\LogFile`, to trace the
+handler's calls. Create an empty `load_trace.log` next to the DLL to log every
+process that loads it.
 
 ## Layout
 
