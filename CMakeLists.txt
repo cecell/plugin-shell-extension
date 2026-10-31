@@ -12,7 +12,7 @@ add_compile_definitions(UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WIN
     PP_VERSION_PATCH=${PROJECT_VERSION_PATCH} PP_VERSION_STR="${PROJECT_VERSION}")
 add_compile_options(/W4 /permissive- /utf-8 /EHsc)
 
-# Parser + registry code shared by the DLL, the setup program and the tools.
+# Parser + registry code shared by the DLL and the tools.
 add_library(ppcore STATIC
     src/plugin_parser.cpp
     src/registration.cpp)
@@ -35,21 +35,24 @@ target_link_libraries(plugininfo PRIVATE ppcore)
 add_executable(menutest tools/menutest.cpp)
 target_link_libraries(menutest PRIVATE ppcore shell32 ole32)
 
-# Setup installs the PluginProperties.dll that sits next to it.
-add_executable(PluginPropertiesSetup WIN32
-    setup/setup.cpp
-    setup/setup.rc
-    setup/setup.manifest)
-target_link_libraries(PluginPropertiesSetup PRIVATE ppcore shell32 advapi32 ole32 user32)
-set_target_properties(PluginProperties PluginPropertiesSetup PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set_target_properties(PluginProperties PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# The distributable: build/PluginProperties-<version>.zip with setup + DLL.
-set(PP_ZIP ${CMAKE_BINARY_DIR}/PluginProperties-${PROJECT_VERSION}.zip)
-add_custom_command(OUTPUT ${PP_ZIP}
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/dist/README.txt ${CMAKE_BINARY_DIR}/bin/README.txt
-    COMMAND ${CMAKE_COMMAND} -E tar cf ${PP_ZIP} --format=zip
-        PluginPropertiesSetup.exe PluginProperties.dll README.txt
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-    DEPENDS PluginProperties PluginPropertiesSetup ${CMAKE_SOURCE_DIR}/dist/README.txt)
-add_custom_target(package_zip ALL DEPENDS ${PP_ZIP})
+# The installer: build/PluginProperties-<version>-setup.exe, built with Inno
+# Setup (6 or newer) when ISCC.exe is found (winget install JRSoftware.InnoSetup).
+find_program(ISCC_EXE ISCC
+    PATHS "$ENV{LOCALAPPDATA}/Programs/Inno Setup 7" "$ENV{ProgramFiles}/Inno Setup 7"
+          "C:/Program Files (x86)/Inno Setup 7"
+          "$ENV{LOCALAPPDATA}/Programs/Inno Setup 6" "$ENV{ProgramFiles}/Inno Setup 6"
+          "C:/Program Files (x86)/Inno Setup 6"
+    NO_DEFAULT_PATH)
+if(ISCC_EXE)
+    set(PP_SETUP ${CMAKE_BINARY_DIR}/PluginProperties-${PROJECT_VERSION}-setup.exe)
+    add_custom_command(OUTPUT ${PP_SETUP}
+        COMMAND ${ISCC_EXE} /Q /DAppVersion=${PROJECT_VERSION} /DBinDir=${CMAKE_BINARY_DIR}/bin
+            /DOutDir=${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/installer/PluginProperties.iss
+        DEPENDS PluginProperties ${CMAKE_SOURCE_DIR}/installer/PluginProperties.iss
+        COMMENT "Building installer with Inno Setup")
+    add_custom_target(installer ALL DEPENDS ${PP_SETUP})
+else()
+    message(STATUS "Inno Setup (ISCC.exe) not found: skipping the installer")
+endif()
