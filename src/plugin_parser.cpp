@@ -67,10 +67,20 @@ struct RawGroup {
 
 enum WalkResult { kWalkOk = 0, kWalkCorrupt, kWalkTooMany, kWalkFault };
 
+// ESL capability (doc section 10): a record whose FormID's top byte is at
+// least the master count is new to this plugin, and its object ID must lie in
+// [eslLowest, 0xFFF]. Overrides and FormID 0 are ignored.
+struct EslCheck {
+    uint32_t numMasters;
+    uint32_t lowest;
+    bool capable;
+};
+
 WalkResult WalkGroups(const uint8_t* base, uint64_t fileSize, uint64_t start, RawGroup* out, size_t capacity,
-                      size_t* outCount, uint64_t* totalGroups, uint64_t* corruptAt) {
+                      size_t* outCount, uint64_t* totalGroups, EslCheck* esl, uint64_t* corruptAt) {
     *outCount = 0;
     *totalGroups = 0;
+    esl->capable = true;
     __try {
         uint64_t pos = start;
         while (pos + 24 <= fileSize) {
@@ -111,6 +121,11 @@ WalkResult WalkGroups(const uint8_t* base, uint64_t fileSize, uint64_t start, Ra
                         return kWalkCorrupt;
                     }
                     ++records;
+                    uint32_t formId = U32(r + 12);
+                    if (esl->capable && formId != 0 && (formId >> 24) >= esl->numMasters) {
+                        uint32_t objectId = formId & 0x00FFFFFF;
+                        if (objectId < esl->lowest || objectId > 0xFFF) esl->capable = false;
+                    }
                     p += 24 + size;
                 }
             }
@@ -264,8 +279,12 @@ PluginHeader ReadPluginHeader(const std::wstring& path) {
     return h;
 }
 
-GroupScan ScanGroups(const std::wstring& path, uint64_t firstGroupOffset) {
+GroupScan ScanGroups(const std::wstring& path, const PluginHeader& header) {
     GroupScan scan;
+    uint64_t firstGroupOffset = header.firstGroupOffset;
+    // HEDR 1.71+ (newer CK) may use object IDs from 0x000; older from 0x800.
+    bool newRange = header.hasHedr && std::isfinite(header.version) && std::lround(header.version * 100.0f) >= 171;
+    EslCheck esl{static_cast<uint32_t>(header.masters.size()), newRange ? 0x000u : 0x800u, true};
     Handle file(OpenForRead(path));
     if (!file.valid()) {
         scan.error = LastErrorText(GetLastError());
@@ -297,8 +316,9 @@ GroupScan ScanGroups(const std::wstring& path, uint64_t firstGroupOffset) {
     size_t count = 0;
     uint64_t corruptAt = 0;
     WalkResult result = WalkGroups(base, fileSize, firstGroupOffset, raw.data(), raw.size(), &count,
-                                   &scan.totalGroups, &corruptAt);
+                                   &scan.totalGroups, &esl, &corruptAt);
     UnmapViewOfFile(base);
+    scan.eslCapable = esl.capable;
 
     for (size_t i = 0; i < count; ++i) {
         GroupCount gc;

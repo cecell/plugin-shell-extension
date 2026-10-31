@@ -45,10 +45,16 @@ struct GroupScan {
     std::vector<GroupCount> groups;  // merged by label, sorted alphabetically
     uint64_t totalRecords = 0;
     uint64_t totalGroups = 0;        // every GRUP at every depth
+    // ESL-capable (Vortex's "Could be light"): every new record's object ID
+    // fits the light range for the HEDR version. Settled when ok, or when false
+    // (a violation found before an error is still a violation).
+    bool eslCapable = true;
 };
 
 PluginHeader ReadPluginHeader(const std::wstring& path);
-GroupScan ScanGroups(const std::wstring& path, uint64_t firstGroupOffset);
+// Walks every GRUP after the TES4 record; header supplies the start offset and
+// the master count / HEDR version for the ESL check.
+GroupScan ScanGroups(const std::wstring& path, const PluginHeader& header);
 
 // "ESM, ESL, Localized" in that order; empty when no bit is set.
 std::wstring FlagsText(uint32_t flags);

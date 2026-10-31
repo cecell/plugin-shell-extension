@@ -33,8 +33,9 @@ int wmain(int argc, wchar_t** argv) {
         for (auto& m : h.masters) wprintf(L" [%s]", m.c_str());
         wprintf(L"\n");
 
-        pp::GroupScan s = pp::ScanGroups(argv[i], h.firstGroupOffset);
+        pp::GroupScan s = pp::ScanGroups(argv[i], h);
         if (!s.error.empty()) wprintf(L"scan error: %s\n", s.error.c_str());
+        wprintf(L"ESLable: %s\n", !s.eslCapable ? L"False" : s.ok ? L"True" : L"Unknown");
         wprintf(L"GRUPs:");
         for (size_t g = 0; g < s.groups.size(); ++g)
             wprintf(L"%s %s (%llu)", g ? L"," : L"", s.groups[g].label.c_str(), s.groups[g].records);
