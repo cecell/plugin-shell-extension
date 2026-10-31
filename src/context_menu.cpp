@@ -66,7 +66,10 @@ public:
         if (!data) return E_INVALIDARG;
         FORMATETC fe{CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL};
         STGMEDIUM stg{};
-        if (FAILED(data->GetData(&fe, &stg))) return E_INVALIDARG;
+        if (FAILED(data->GetData(&fe, &stg))) {
+            DebugLog(L"Initialize: no CF_HDROP");
+            return E_INVALIDARG;
+        }
         if (auto drop = static_cast<HDROP>(GlobalLock(stg.hGlobal))) {
             UINT count = DragQueryFileW(drop, 0xFFFFFFFF, nullptr, 0);
             for (UINT i = 0; i < count; ++i) {
@@ -79,6 +82,8 @@ public:
             GlobalUnlock(stg.hGlobal);
         }
         ReleaseStgMedium(&stg);
+        DebugLog(L"Initialize: %zu plugin path(s)%s%s", paths_.size(), paths_.empty() ? L"" : L", first ",
+                 paths_.empty() ? L"" : paths_[0].c_str());
         return paths_.empty() ? E_FAIL : S_OK;
     }
 

@@ -6,6 +6,7 @@
 #include <string>
 
 #include "context_menu.h"
+#include "debug_log.h"
 #include "property_window.h"
 #include "registration.h"
 
@@ -40,6 +41,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
 STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
     if (!ppv) return E_POINTER;
     *ppv = nullptr;
+    pp::DebugLog(L"DllGetClassObject match=%d", clsid == pp::kClsidContextMenu);
     if (clsid != pp::kClsidContextMenu) return CLASS_E_CLASSNOTAVAILABLE;
     return pp::CreateClassFactory(riid, ppv);
 }
