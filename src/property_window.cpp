@@ -642,14 +642,14 @@ struct ScanSlot {
 struct ScanJob {
     HWND hwnd;
     std::wstring path;
-    uint64_t offset;
+    PluginHeader header;
     std::shared_ptr<ScanSlot> slot;
     HMODULE module;
 };
 
 DWORD WINAPI ScanThread(void* param) {
     std::unique_ptr<ScanJob> job(static_cast<ScanJob*>(param));
-    GroupScan scan = ScanGroups(job->path, job->offset);
+    GroupScan scan = ScanGroups(job->path, job->header);
     {
         std::lock_guard<std::mutex> g(job->slot->lock);
         job->slot->result = std::move(scan);
@@ -778,6 +778,13 @@ private:
             row(L"Records", header_.hasHedr ? GroupDigits(static_cast<uint32_t>(header_.numRecords)) : L"");
             row(L"Flags", FlagsText(header_.flags));
             row(L"Light", header_.light ? L"True" : L"False");
+            // Needs the full record walk, so it fills in with the GRUP scan.
+            std::wstring eslable = L"Checking…";
+            if (scanDone_) {
+                if (!scan_.eslCapable) eslable = L"False";
+                else eslable = scan_.ok ? L"True" : L"Unknown";
+            }
+            row(L"ESLable", eslable);
             row(L"Author", header_.author);
             row(L"Description", header_.description);
             std::wstring masters;
@@ -814,7 +821,7 @@ private:
     // finishes.
     void StartScan() {
         if (header_.ok) {
-            auto* job = new ScanJob{hwnd_, path_, header_.firstGroupOffset, slot_, AddModuleRef()};
+            auto* job = new ScanJob{hwnd_, path_, header_, slot_, AddModuleRef()};
             if (HANDLE t = CreateThread(nullptr, 0, &ScanThread, job, 0, nullptr)) {
                 CloseHandle(t);
                 return;

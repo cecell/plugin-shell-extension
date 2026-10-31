@@ -12,6 +12,7 @@ window styled after the Properties dialog's **Details** tab:
 | Records | `HEDR` record count (records + GRUPs, as the CK writes it) |
 | Flags | TES4 flags as text: `ESM`, `ESL`, `Localized` |
 | Light | `.esl` extension, or the ESL flag |
+| ESLable | whether the ESL flag could be set without renumbering anything (Vortex's "Could be light", esplugin's rule): every record new to the plugin has an object ID in `0x800..0xFFF`, or `0x000..0xFFF` for HEDR 1.71+. Computed during the GRUP scan |
 | Author | `CNAM` (wraps) |
 | Description | `SNAM` (wraps, keeps line breaks) |
 | Masters | every `MAST`, one per line, in master-index order |
