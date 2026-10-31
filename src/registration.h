@@ -1,5 +1,6 @@
-// Registry layout of the context-menu handler. Shared by the DLL
-// (DllRegisterServer / DllInstall) and the setup program.
+// Registry layout of the context-menu handler, used by the DLL
+// (DllRegisterServer / DllInstall). installer/PluginProperties.iss writes the
+// same keys; keep the two in step.
 #pragma once
 
 #include <windows.h>

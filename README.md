@@ -28,18 +28,17 @@ can be resized, and so can the window.
 
 ## Install
 
-Build (below), then run `build\bin\PluginPropertiesSetup.exe`, or hand out
-`build\PluginProperties-<version>.zip`. Setup installs for the current user
-(no admin prompt) into `%LOCALAPPDATA%\Programs\Plugin Properties`, registers
-the handler under `HKCU\Software\Classes`, and adds an entry to
-**Settings > Apps** for uninstalling.
+Run `build\PluginProperties-<version>-setup.exe`, a standard Inno Setup
+wizard. It installs for the current user (no admin prompt) into
+`%LOCALAPPDATA%\Programs\Plugin Properties`, registers the handler under
+`HKCU\Software\Classes`, and adds **Plugin Properties** to **Settings > Apps**
+for uninstalling. Installing over an older version works while Explorer has
+the DLL loaded: the old file is moved aside rather than Explorer being closed.
+Restart Explorer (or sign out) to pick up the new version.
 
-```
-PluginPropertiesSetup.exe /install | /uninstall  [/allusers] [/quiet]
-```
-
-`/allusers` installs into Program Files and registers under HKLM (asks for
-elevation).
+Silent install / uninstall use the usual Inno switches:
+`PluginProperties-<version>-setup.exe /VERYSILENT`, and
+`unins000.exe /VERYSILENT` in the install folder.
 
 Run setup from Explorer or a normal terminal. A process started from inside a
 packaged (MSIX) app, such as a terminal in the Claude desktop app, gets a
@@ -55,7 +54,9 @@ project does not do.
 ## Build
 
 Requires Visual Studio with the MSVC 14.44 (v143) toolset; CMake and Ninja come
-from the VS install / PATH.
+from the VS install / PATH. The installer needs Inno Setup 6 or 7
+(`winget install JRSoftware.InnoSetup`). Without it the build still produces
+the DLL and skips the installer.
 
 ```
 build.cmd
@@ -64,13 +65,9 @@ build.cmd
 Outputs, in `build\`:
 
 - `bin\PluginProperties.dll`: the shell extension (static CRT, no redistributable needed)
-- `bin\PluginPropertiesSetup.exe`: installer / uninstaller
-- `PluginProperties-<version>.zip`: setup + DLL + README for distribution
+- `PluginProperties-<version>-setup.exe`: the installer (script in `installer\PluginProperties.iss`)
 - `plugininfo.exe <plugin>...`: console dump of the same fields, plus a self-check that walked records + GRUPs equal the HEDR count
 - `menutest.exe <plugin> [--invoke]`: builds Explorer's context menu for a file and checks the entry is there (and opens)
-
-The DLL is deliberately not embedded in the setup exe. Antivirus heuristics
-(Trend Micro here) delete an unsigned exe that carries a DLL payload.
 
 ## Testing without installing
 
@@ -93,6 +90,6 @@ process that loads it.
 - `src/plugin_parser.*`: TES4 header + GRUP walk (bounds-checked; the mapped walk runs under SEH)
 - `src/property_window.*`: the dialog and its custom Property/Value list, needed because a ListView cannot give rows different heights
 - `src/context_menu.*`: `IShellExtInit` + `IContextMenu` + class factory
-- `src/registration.*`: registry layout shared by the DLL and setup
+- `src/registration.*`: registry layout for `regsvr32` (the installer writes the same keys from `installer/PluginProperties.iss`)
 - `src/dllmain.cpp`: COM exports, `DllRegisterServer`/`DllInstall`, rundll32 entry points
-- `setup/`: the installer
+- `installer/PluginProperties.iss`: the Inno Setup installer
