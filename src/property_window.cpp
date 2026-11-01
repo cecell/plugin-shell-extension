@@ -124,6 +124,7 @@ struct Row {
     std::wstring value;
     int top = 0;
     int height = 0;
+    std::wstring tip;  // hover text for the row, if any
 };
 
 std::wstring StripBidiMarks(std::wstring s) {
@@ -268,6 +269,7 @@ public:
         // Explorer's own dark list, scrollbar and header styles.
         SetWindowTheme(hwnd_, palette_.dark ? L"DarkMode_Explorer" : L"Explorer", nullptr);
         SetWindowTheme(header_, palette_.dark ? L"DarkMode_ItemsView" : L"ItemsView", nullptr);
+        SetWindowTheme(tip_, palette_.dark ? L"DarkMode_Explorer" : nullptr, nullptr);
         OpenTheme();
         SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
@@ -293,6 +295,8 @@ private:
     Palette palette_ = CurrentPalette();
     HWND hwnd_ = nullptr;
     HWND header_ = nullptr;
+    HWND tip_ = nullptr;
+    std::wstring tipText_;
     HTHEME theme_ = nullptr;
     HFONT font_ = nullptr;
     HFONT groupFont_ = nullptr;
@@ -574,6 +578,17 @@ private:
     LRESULT Proc(UINT msg, WPARAM wp, LPARAM lp) {
         switch (msg) {
             case WM_CREATE: {
+                // One tool over the whole list; the text comes from the hovered
+                // row (TTN_GETDISPINFO), and rows without a tip show none.
+                tip_ = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+                                       0, 0, 0, 0, hwnd_, nullptr, g_hInst, nullptr);
+                TTTOOLINFOW ti{sizeof(ti)};
+                ti.uFlags = TTF_SUBCLASS;
+                ti.hwnd = hwnd_;
+                ti.uId = 1;
+                ti.lpszText = LPSTR_TEXTCALLBACKW;
+                ti.rect = {0, 0, 32767, 32767};
+                SendMessageW(tip_, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&ti));
                 header_ = CreateWindowExW(0, WC_HEADERW, nullptr, WS_CHILD | WS_VISIBLE | HDS_HORZ | HDS_FULLDRAG,
                                           0, 0, 0, 0, hwnd_, nullptr, g_hInst, nullptr);
                 HDITEMW item{};
@@ -662,6 +677,7 @@ private:
                 if (h != hot_) {
                     hot_ = h;
                     InvalidateRect(hwnd_, nullptr, FALSE);
+                    SendMessageW(tip_, TTM_POP, 0, 0);  // re-query the text for the new row
                 }
                 return 0;
             }
@@ -712,6 +728,14 @@ private:
                 InvalidateRect(hwnd_, nullptr, FALSE);
                 return 0;
             case WM_NOTIFY: {
+                if (reinterpret_cast<NMHDR*>(lp)->hwndFrom == tip_) {
+                    if (reinterpret_cast<NMHDR*>(lp)->code == TTN_GETDISPINFOW) {
+                        auto* di = reinterpret_cast<NMTTDISPINFOW*>(lp);
+                        tipText_ = (hot_ >= 0 && hot_ < static_cast<int>(rows_.size())) ? rows_[hot_].tip : L"";
+                        di->lpszText = const_cast<wchar_t*>(tipText_.c_str());
+                    }
+                    return 0;
+                }
                 auto* nh = reinterpret_cast<NMHEADERW*>(lp);
                 if (nh->hdr.hwndFrom != header_) break;
                 switch (nh->hdr.code) {
@@ -959,7 +983,13 @@ private:
             row(L"Light", header_.light ? L"True" : L"False");
             // A plugin that already loads as light needs no check; otherwise
             // it needs the full record walk, so it fills in with the GRUP scan.
-            row(L"ESLable", header_.light || scanDone_ ? EslStatusText(ClassifyEsl(header_, scan_), false) : L"Checking…");
+            if (header_.light || scanDone_) {
+                EslStatus esl = ClassifyEsl(header_, scan_);
+                row(L"ESLable", EslStatusText(esl, false));
+                if (EslNeedsNewerGame(header_, scan_, esl)) rows.back().tip = kNeedsNewerGameText;
+            } else {
+                row(L"ESLable", L"Checking…");
+            }
             row(L"Author - CNAM", header_.author);
             row(L"Description - SNAM", header_.description);
             std::wstring masters;

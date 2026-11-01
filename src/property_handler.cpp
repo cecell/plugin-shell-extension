@@ -18,7 +18,7 @@ namespace pp {
 namespace {
 
 constexpr DWORD kPids[] = {kPidHeaderVersion, kPidRecordCount, kPidFlags, kPidLight,
-                           kPidMasterCount,   kPidDeletedCount, kPidEslable, kPidMasters};
+                           kPidMasterCount,   kPidDeletedCount, kPidEslable, kPidMasters, kPidEslNote};
 
 // The two values that need the full record walk, cached per process so a
 // folder refresh does not rescan every plugin. Keyed by file name, size and
@@ -27,6 +27,7 @@ struct ScanSummary {
     bool ok = false;
     uint64_t deleted = 0;
     std::wstring eslable;
+    bool needsNewerGame = false;
 };
 using ScanKey = std::tuple<std::wstring, uint64_t, uint64_t>;
 
@@ -121,6 +122,9 @@ public:
                 // Short form for the column; the dialog says "Already flagged".
                 if (header_.light) return InitPropVariantFromString(L"Already", pv);
                 return InitPropVariantFromString(Scan().eslable.c_str(), pv);
+            case kPidEslNote:
+                if (header_.light) return S_OK;
+                return Scan().needsNewerGame ? InitPropVariantFromString(kNeedsNewerGameText, pv) : S_OK;
             case kPidDeletedCount: {
                 // Blank rather than 0, so plugins that need cleaning stand out.
                 const ScanSummary& s = Scan();
@@ -156,7 +160,9 @@ private:
         GroupScan scan = ScanGroups(stream_, header_);
         summary_.ok = scan.ok;
         summary_.deleted = scan.totalDeleted;
-        summary_.eslable = EslStatusText(ClassifyEsl(header_, scan), true);
+        EslStatus esl = ClassifyEsl(header_, scan);
+        summary_.eslable = EslStatusText(esl, true);
+        summary_.needsNewerGame = EslNeedsNewerGame(header_, scan, esl);
         if (scan.ok && !std::get<0>(key_).empty()) {
             std::lock_guard<std::mutex> c(g_cacheLock);
             if (g_cache.size() >= kCacheLimit) g_cache.clear();

@@ -25,8 +25,8 @@
 #define PropHandlerClsid "{E0BA20B2-0391-45F5-80C3-07E306E945E9}"
 #define P "Cecell.PluginProperties."
 ; Details pane (Alt+Shift+P) and hover tooltip contents.
-#define PreviewDetails "prop:" + P + "HeaderVersion;" + P + "RecordCount;" + P + "Flags;" + P + "Light;" + P + "MasterCount;" + P + "DeletedCount;" + P + "ESLable;" + P + "Masters;*System.DateModified;*System.Size;*System.DateCreated"
-#define InfoTip "prop:System.ItemTypeText;System.Size;System.DateModified;" + P + "RecordCount;" + P + "Masters"
+#define PreviewDetails "prop:" + P + "HeaderVersion;" + P + "RecordCount;" + P + "Flags;" + P + "Light;" + P + "MasterCount;" + P + "DeletedCount;" + P + "ESLable;" + P + "ESLNote;" + P + "Masters;*System.DateModified;*System.Size;*System.DateCreated"
+#define InfoTip "prop:System.ItemTypeText;System.Size;System.DateModified;" + P + "RecordCount;" + P + "Masters;" + P + "ESLNote"
 
 [Setup]
 AppId={{27A531A2-EEF9-4E30-BDE9-3295D03F4D3E}

@@ -72,12 +72,20 @@ GroupScan ScanGroups(IStream* stream, const PluginHeader& header);
 //              range for its header (< 1.71: 2,048 in 0x800-0xFFF; 1.71+:
 //              4,096 in 0x000-0xFFF)
 //   Compact  - few enough new records, but some IDs are outside that range
-//   SaveInCk - header < 1.71 with 2,049-4,096 new records whose IDs all fit
-//              0x000-0xFFF: resaving in the newer CK (header 1.71) makes it fit
-//   False    - anything else
-//   Unknown  - the record walk failed
-enum class EslStatus { Already, True, Compact, SaveInCk, False, Unknown };
+//   SaveInCk - header < 1.71 whose new records all fit 0x000-0xFFF but not
+//              the old rules (IDs below 0x800, or 2,049-4,096 of them):
+//              resaving in the newer CK (header 1.71) makes it fit
+//   SaveAndCompact - header < 1.71, 2,049-4,096 new records, some IDs
+//              outside 0x000-0xFFF: resave, then compact
+//   False    - anything else (more than 4,096 new records)
+//   Corrupted - the record walk failed
+// No new records at all (overrides only) is True.
+enum class EslStatus { Already, True, Compact, SaveInCk, SaveAndCompact, False, Corrupted };
 EslStatus ClassifyEsl(const PluginHeader& header, const GroupScan& scan);
+// True when the light result needs object IDs below 0x800, which only game
+// version 1.6.1130 or later loads ("Requires v1.6.1130 or later").
+bool EslNeedsNewerGame(const PluginHeader& header, const GroupScan& scan, EslStatus status);
+inline constexpr wchar_t kNeedsNewerGameText[] = L"Requires v1.6.1130 or later";
 // shortForm: "Already" (Explorer column) instead of "Already flagged".
 const wchar_t* EslStatusText(EslStatus status, bool shortForm);
 

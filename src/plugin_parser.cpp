@@ -424,6 +424,12 @@ void FinishScan(const WalkOutput& out, WalkResult result, GroupScan* scan) {
     }
 }
 
+// HEDR 1.71+ (CK for game 1.6.1130+) may use object IDs from 0x000 (4,096);
+// older headers only from 0x800 (2,048).
+bool HasNewIdRange(const PluginHeader& header) {
+    return header.hasHedr && std::isfinite(header.version) && std::lround(header.version * 100.0f) >= 171;
+}
+
 }  // namespace
 
 std::wstring DecodeZString(const uint8_t* data, size_t size) {
@@ -468,20 +474,34 @@ std::wstring VersionText(float version) {
 
 EslStatus ClassifyEsl(const PluginHeader& header, const GroupScan& scan) {
     if (header.light) return EslStatus::Already;
-    if (!scan.ok) return EslStatus::Unknown;
-    // HEDR 1.71+ (CK for 1.6.1130+) may use object IDs from 0x000 (4,096);
-    // older headers only from 0x800 (2,048).
-    bool v171 = header.hasHedr && std::isfinite(header.version) && std::lround(header.version * 100.0f) >= 171;
+    if (!scan.ok) return EslStatus::Corrupted;
     uint64_t n = scan.newRecords;
-    if (v171) {
+    if (HasNewIdRange(header)) {
         if (n > 4096) return EslStatus::False;
         return scan.newIdsIn000 ? EslStatus::True : EslStatus::Compact;
     }
-    if (n <= 2048) return scan.newIdsIn800 ? EslStatus::True : EslStatus::Compact;
-    // Too many for the old range, but resaving in the newer CK (header 1.71)
-    // opens 0x000..0x7FF, which these IDs already fit.
-    if (n <= 4096 && scan.newIdsIn000) return EslStatus::SaveInCk;
+    // Header < 1.71. Resaving in the newer CK gives it a 1.71 header, which
+    // opens 0x000..0x7FF, so "Save in CK" fixes IDs that already fit there.
+    if (n <= 2048) {
+        if (scan.newIdsIn800) return EslStatus::True;
+        return scan.newIdsIn000 ? EslStatus::SaveInCk : EslStatus::Compact;
+    }
+    if (n <= 4096) return scan.newIdsIn000 ? EslStatus::SaveInCk : EslStatus::SaveAndCompact;
     return EslStatus::False;
+}
+
+bool EslNeedsNewerGame(const PluginHeader& header, const GroupScan& scan, EslStatus status) {
+    switch (status) {
+        case EslStatus::True:  // a 1.71 plugin already using IDs below 0x800
+            return HasNewIdRange(header) && !scan.newIdsIn800;
+        case EslStatus::SaveInCk:        // ends with a 1.71 header and IDs below 0x800
+        case EslStatus::SaveAndCompact:  // more than 2,048 new records
+            return true;
+        case EslStatus::Compact:  // more than 2,048 can only fit from 0x000
+            return HasNewIdRange(header) && scan.newRecords > 2048;
+        default:
+            return false;
+    }
 }
 
 const wchar_t* EslStatusText(EslStatus status, bool shortForm) {
@@ -490,10 +510,11 @@ const wchar_t* EslStatusText(EslStatus status, bool shortForm) {
         case EslStatus::True: return L"True";
         case EslStatus::Compact: return L"Compact";
         case EslStatus::SaveInCk: return L"Save in CK";
+        case EslStatus::SaveAndCompact: return L"Save + Compact";
         case EslStatus::False: return L"False";
-        case EslStatus::Unknown: break;
+        case EslStatus::Corrupted: break;
     }
-    return L"Unknown";
+    return L"Corrupted";
 }
 
 PluginHeader ReadPluginHeader(const std::wstring& path) {
