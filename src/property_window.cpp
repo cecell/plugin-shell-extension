@@ -45,9 +45,70 @@ constexpr int kHeaderMinH = 22;
 constexpr int kTextPadX = 5, kTextPadY = 2;
 constexpr int kGroupPadX = 7;
 
-constexpr COLORREF kGroupText = RGB(30, 57, 145);
-constexpr COLORREF kGroupLine = RGB(198, 214, 238);
-constexpr COLORREF kBorder = RGB(130, 135, 144);
+// DWMWA_USE_IMMERSIVE_DARK_MODE (dark title bar), Windows 10 20H1 and later.
+constexpr DWORD kDwmUseImmersiveDarkMode = 20;
+
+// Colours for the parts this file paints itself. Common controls get the
+// matching visual-style class instead (Explorer / DarkMode_Explorer, ...).
+struct Palette {
+    bool dark = false;
+    COLORREF window;     // dialog background
+    COLORREF page;       // tab page (painted by us only in dark mode)
+    COLORREF tabBorder;  // tab page outline (dark mode)
+    COLORREF listBack;
+    COLORREF text;
+    COLORREF groupText;
+    COLORREF groupLine;
+    COLORREF border;     // list outline
+};
+
+bool HighContrastOn() {
+    HIGHCONTRASTW hc{sizeof(hc)};
+    return SystemParametersInfoW(SPI_GETHIGHCONTRAST, sizeof(hc), &hc, 0) && (hc.dwFlags & HCF_HIGHCONTRASTON);
+}
+
+// Follows Settings > Personalization > Colors > "Choose your app mode".
+// PLUGINPROPS_THEME=dark|light overrides it (for testing).
+bool AppsUseDarkTheme() {
+    wchar_t forced[16] = {};
+    if (GetEnvironmentVariableW(L"PLUGINPROPS_THEME", forced, ARRAYSIZE(forced))) return _wcsicmp(forced, L"dark") == 0;
+    DWORD light = 1, size = sizeof(light);
+    RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                 L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &light, &size);
+    return light == 0;
+}
+
+// High contrast wins over dark mode and uses the user's system colours.
+Palette CurrentPalette() {
+    Palette p;
+    if (HighContrastOn()) {
+        p.window = p.page = GetSysColor(COLOR_3DFACE);
+        p.tabBorder = p.border = GetSysColor(COLOR_WINDOWFRAME);
+        p.listBack = GetSysColor(COLOR_WINDOW);
+        p.text = GetSysColor(COLOR_WINDOWTEXT);
+        p.groupText = GetSysColor(COLOR_HOTLIGHT);
+        p.groupLine = GetSysColor(COLOR_GRAYTEXT);
+    } else if (AppsUseDarkTheme()) {
+        p.dark = true;
+        p.window = RGB(32, 32, 32);
+        p.page = RGB(43, 43, 43);
+        p.tabBorder = RGB(64, 64, 64);
+        p.listBack = RGB(25, 25, 25);
+        p.text = RGB(255, 255, 255);
+        p.groupText = RGB(153, 199, 255);
+        p.groupLine = RGB(62, 72, 92);
+        p.border = RGB(86, 86, 86);
+    } else {
+        p.window = p.page = GetSysColor(COLOR_3DFACE);
+        p.tabBorder = RGB(217, 217, 217);
+        p.listBack = GetSysColor(COLOR_WINDOW);
+        p.text = GetSysColor(COLOR_WINDOWTEXT);
+        p.groupText = RGB(30, 57, 145);
+        p.groupLine = RGB(198, 214, 238);
+        p.border = RGB(130, 135, 144);
+    }
+    return p;
+}
 
 int Scale(int v, UINT dpi) { return MulDiv(v, static_cast<int>(dpi), 96); }
 HMENU CtrlId(int id) { return reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)); }
@@ -191,14 +252,31 @@ public:
         dpi_ = dpi;
         font_ = font;
         groupFont_ = groupFont;
-        if (theme_) CloseThemeData(theme_);
-        theme_ = OpenThemeDataForDpi(hwnd_, L"ListView", dpi_);
+        OpenTheme();
         SendMessageW(header_, WM_SETFONT, reinterpret_cast<WPARAM>(font_), FALSE);
         col0Pref_ = Scale(kPropertyColumnW, dpi_);
         Layout();
     }
 
+    void SetPalette(const Palette& palette) {
+        palette_ = palette;
+        // Explorer's own dark list, scrollbar and header styles.
+        SetWindowTheme(hwnd_, palette_.dark ? L"DarkMode_Explorer" : L"Explorer", nullptr);
+        SetWindowTheme(header_, palette_.dark ? L"DarkMode_ItemsView" : L"ItemsView", nullptr);
+        OpenTheme();
+        SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        RedrawWindow(hwnd_, nullptr, nullptr, RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
+    }
+
 private:
+    void OpenTheme() {
+        if (theme_) CloseThemeData(theme_);
+        theme_ = OpenThemeDataForDpi(hwnd_, palette_.dark ? L"DarkMode_Explorer::ListView" : L"Explorer::ListView",
+                                     dpi_);
+    }
+
+    Palette palette_ = CurrentPalette();
     HWND hwnd_ = nullptr;
     HWND header_ = nullptr;
     HTHEME theme_ = nullptr;
@@ -410,7 +488,9 @@ private:
         HDC dc = CreateCompatibleDC(target);
         HBITMAP bmp = CreateCompatibleBitmap(target, std::max<LONG>(rc.right, 1), std::max<LONG>(rc.bottom, 1));
         HGDIOBJ oldBmp = SelectObject(dc, bmp);
-        FillRect(dc, &rc, GetSysColorBrush(COLOR_WINDOW));
+        HBRUSH back = CreateSolidBrush(palette_.listBack);
+        FillRect(dc, &rc, back);
+        DeleteObject(back);
         SetBkMode(dc, TRANSPARENT);
 
         int padX = Scale(kTextPadX, dpi_);
@@ -427,14 +507,14 @@ private:
                 TEXTMETRICW tm;
                 GetTextMetricsW(dc, &tm);
                 RECT tr{Scale(kGroupPadX, dpi_), rr.bottom - tm.tmHeight - Scale(3, dpi_), rc.right, rr.bottom};
-                SetTextColor(dc, kGroupText);
+                SetTextColor(dc, palette_.groupText);
                 DrawTextW(dc, row.name.c_str(), -1, &tr, DT_SINGLELINE | DT_NOPREFIX | DT_LEFT | DT_TOP);
                 SIZE ext{};
                 GetTextExtentPoint32W(dc, row.name.c_str(), static_cast<int>(row.name.size()), &ext);
                 SelectObject(dc, old);
                 int lineY = tr.top + tm.tmHeight / 2 + 1;
                 RECT line{tr.left + ext.cx + Scale(4, dpi_), lineY, rc.right - Scale(kGroupPadX, dpi_), lineY + 1};
-                HBRUSH lb = CreateSolidBrush(kGroupLine);
+                HBRUSH lb = CreateSolidBrush(palette_.groupLine);
                 FillRect(dc, &line, lb);
                 DeleteObject(lb);
                 continue;
@@ -452,7 +532,7 @@ private:
                     FillRect(dc, &sr, GetSysColorBrush(selected ? COLOR_HIGHLIGHT : COLOR_BTNFACE));
                 }
             }
-            SetTextColor(dc, (selected && !theme_) ? GetSysColor(COLOR_HIGHLIGHTTEXT) : GetSysColor(COLOR_WINDOWTEXT));
+            SetTextColor(dc, (selected && !theme_) ? GetSysColor(COLOR_HIGHLIGHTTEXT) : palette_.text);
             HGDIOBJ old = SelectObject(dc, font_);
             RECT nr{padX, top + padY, col0_ - padX, rr.bottom};
             DrawTextW(dc, row.name.c_str(), -1, &nr, textFlags);
@@ -472,7 +552,6 @@ private:
             case WM_CREATE: {
                 header_ = CreateWindowExW(0, WC_HEADERW, nullptr, WS_CHILD | WS_VISIBLE | HDS_HORZ | HDS_FULLDRAG,
                                           0, 0, 0, 0, hwnd_, nullptr, g_hInst, nullptr);
-                SetWindowTheme(header_, L"ItemsView", nullptr);
                 HDITEMW item{};
                 item.mask = HDI_TEXT | HDI_WIDTH | HDI_FORMAT;
                 item.fmt = HDF_LEFT | HDF_STRING;
@@ -481,7 +560,7 @@ private:
                 Header_InsertItem(header_, 0, &item);
                 item.pszText = const_cast<wchar_t*>(L"Value");
                 Header_InsertItem(header_, 1, &item);
-                SetWindowTheme(hwnd_, L"Explorer", nullptr);
+                SetPalette(palette_);
                 return 0;
             }
             case WM_DESTROY:
@@ -490,7 +569,8 @@ private:
                 return 0;
             case WM_THEMECHANGED:
                 if (theme_) CloseThemeData(theme_);
-                theme_ = OpenThemeDataForDpi(hwnd_, L"ListView", dpi_);
+                theme_ = nullptr;
+                OpenTheme();
                 InvalidateRect(hwnd_, nullptr, FALSE);
                 return 0;
             case WM_SIZE:
@@ -515,7 +595,7 @@ private:
                 RECT wr;
                 GetWindowRect(hwnd_, &wr);
                 OffsetRect(&wr, -wr.left, -wr.top);
-                HBRUSH b = CreateSolidBrush(kBorder);
+                HBRUSH b = CreateSolidBrush(palette_.border);
                 FrameRect(dc, &wr, b);
                 DeleteObject(b);
                 ReleaseDC(hwnd_, dc);
@@ -611,6 +691,14 @@ private:
                 auto* nh = reinterpret_cast<NMHEADERW*>(lp);
                 if (nh->hdr.hwndFrom != header_) break;
                 switch (nh->hdr.code) {
+                    case NM_CUSTOMDRAW: {
+                        // The dark header style keeps dark text; recolour it.
+                        auto* cd = reinterpret_cast<NMCUSTOMDRAW*>(lp);
+                        if (!palette_.dark) return CDRF_DODEFAULT;
+                        if (cd->dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
+                        if (cd->dwDrawStage == CDDS_ITEMPREPAINT) SetTextColor(cd->hdc, palette_.text);
+                        return CDRF_DODEFAULT;
+                    }
                     case HDN_BEGINTRACKW:
                     case HDN_DIVIDERDBLCLICKW:
                         return nh->iItem != 0;  // only the Property column is sizable
@@ -677,7 +765,7 @@ public:
         wc.lpfnWndProc = &PropertyDialog::StaticProc;
         wc.hInstance = g_hInst;
         wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-        wc.hbrBackground = GetSysColorBrush(COLOR_3DFACE);
+        wc.hbrBackground = nullptr;  // WM_ERASEBKGND paints the palette colour
         wc.lpszClassName = kDialogClass;
         RegisterClassExW(&wc);
     }
@@ -712,6 +800,72 @@ private:
     std::shared_ptr<ScanSlot> slot_ = std::make_shared<ScanSlot>();
     bool scanDone_ = false;
     GroupScan scan_;
+    Palette palette_ = CurrentPalette();
+    HBRUSH windowBrush_ = nullptr;
+
+    // Re-reads light/dark/high contrast and restyles everything; called at
+    // creation and whenever Windows reports a colour or theme change.
+    void ApplyPalette() {
+        palette_ = CurrentPalette();
+        if (windowBrush_) DeleteObject(windowBrush_);
+        windowBrush_ = CreateSolidBrush(palette_.window);
+        BOOL dark = palette_.dark;
+        DwmSetWindowAttribute(hwnd_, kDwmUseImmersiveDarkMode, &dark, sizeof(dark));
+        for (HWND b : {ok_, cancel_, apply_}) SetWindowTheme(b, palette_.dark ? L"DarkMode_Explorer" : L"Explorer", nullptr);
+        PropertyList::From(list_)->SetPalette(palette_);
+        RedrawWindow(hwnd_, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN);
+    }
+
+    // The tab control has no dark visual style, so in dark mode it is painted
+    // here: the "Details" tab and the page outline. Light mode and high
+    // contrast keep the control's own drawing.
+    static LRESULT CALLBACK TabProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR ref) {
+        auto* self = reinterpret_cast<PropertyDialog*>(ref);
+        if (self->palette_.dark && (msg == WM_PAINT || msg == WM_ERASEBKGND || msg == WM_PRINTCLIENT)) {
+            if (msg == WM_ERASEBKGND) return 1;
+            PAINTSTRUCT ps{};
+            HDC dc = msg == WM_PAINT ? BeginPaint(hwnd, &ps) : reinterpret_cast<HDC>(wp);
+            self->PaintDarkTab(hwnd, dc);
+            if (msg == WM_PAINT) EndPaint(hwnd, &ps);
+            return 0;
+        }
+        if (msg == WM_NCDESTROY) RemoveWindowSubclass(hwnd, &PropertyDialog::TabProc, 1);
+        return DefSubclassProc(hwnd, msg, wp, lp);
+    }
+
+    void PaintDarkTab(HWND tab, HDC dc) {
+        RECT rc;
+        GetClientRect(tab, &rc);
+        auto fill = [dc](const RECT& r, COLORREF c) {
+            HBRUSH b = CreateSolidBrush(c);
+            FillRect(dc, &r, b);
+            DeleteObject(b);
+        };
+        fill(rc, palette_.window);
+        RECT item{};
+        TabCtrl_GetItemRect(tab, 0, &item);
+        RECT page = rc;
+        page.top = item.bottom;
+        fill(page, palette_.tabBorder);
+        InflateRect(&page, -1, -1);
+        fill(page, palette_.page);
+        // The selected tab joins the page: outline on three sides only.
+        RECT tabRect{item.left, item.top, item.right, item.bottom + 1};
+        fill(tabRect, palette_.tabBorder);
+        RECT inner{tabRect.left + 1, tabRect.top + 1, tabRect.right - 1, tabRect.bottom};
+        fill(inner, palette_.page);
+        wchar_t text[64] = {};
+        TCITEMW ti{};
+        ti.mask = TCIF_TEXT;
+        ti.pszText = text;
+        ti.cchTextMax = ARRAYSIZE(text);
+        TabCtrl_GetItem(tab, 0, &ti);
+        HGDIOBJ old = SelectObject(dc, font_);
+        SetBkMode(dc, TRANSPARENT);
+        SetTextColor(dc, palette_.text);
+        DrawTextW(dc, text, -1, &inner, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        SelectObject(dc, old);
+    }
 
     static LRESULT CALLBACK StaticProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         auto* self = reinterpret_cast<PropertyDialog*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
@@ -858,6 +1012,13 @@ private:
         int fullW = wr.right - wr.left, fullH = wr.bottom - wr.top;
         int w = visible.right - visible.left, h = visible.bottom - visible.top;
         int cropX = visible.left - wr.left, cropY = visible.top - wr.top;
+        // The frame bounds are always physical pixels; a DPI-unaware window's
+        // rect is not, so fall back to the whole window when they disagree.
+        if (cropX < 0 || cropY < 0 || cropX + w > fullW || cropY + h > fullH) {
+            cropX = cropY = 0;
+            w = fullW;
+            h = fullH;
+        }
         BITMAPINFO bi{};
         bi.bmiHeader = {sizeof(BITMAPINFOHEADER), fullW, -fullH, 1, 32, BI_RGB};
         void* bits = nullptr;
@@ -968,7 +1129,9 @@ private:
                                          hwnd_, CtrlId(IDC_APPLY), g_hInst, nullptr);
                 // The tab control is drawn first, under the list.
                 SetWindowPos(tab_, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                SetWindowSubclass(tab_, &PropertyDialog::TabProc, 1, reinterpret_cast<DWORD_PTR>(this));
 
+                ApplyPalette();
                 ApplyDpi(dpi_);
                 PlaceWindow();
                 LayoutChildren();
@@ -1007,10 +1170,30 @@ private:
             case WM_APP_SCANDONE:
                 OnScanDone();
                 return 0;
+            case WM_ERASEBKGND: {
+                RECT rc;
+                GetClientRect(hwnd_, &rc);
+                FillRect(reinterpret_cast<HDC>(wp), &rc, windowBrush_);
+                return 1;
+            }
+            case WM_CTLCOLORBTN:  // the corners around themed push buttons
+                return reinterpret_cast<LRESULT>(windowBrush_);
+            case WM_SETTINGCHANGE:
+                // "ImmersiveColorSet" = app mode switched between light and dark.
+                if (lp && (lstrcmpiW(reinterpret_cast<LPCWSTR>(lp), L"ImmersiveColorSet") == 0)) ApplyPalette();
+                if (wp == SPI_SETHIGHCONTRAST) ApplyPalette();
+                if (wp == SPI_SETNONCLIENTMETRICS) ApplyDpi(dpi_);  // system font changed
+                break;
+            case WM_THEMECHANGED:
+            case WM_SYSCOLORCHANGE:
+                ApplyPalette();
+                break;
             case WM_DESTROY:
                 PostQuitMessage(0);
                 return 0;
             case WM_NCDESTROY:
+                if (windowBrush_) DeleteObject(windowBrush_);
+                windowBrush_ = nullptr;
                 if (font_) DeleteObject(font_);
                 if (groupFont_) DeleteObject(groupFont_);
                 if (iconSmall_) DestroyIcon(iconSmall_);
@@ -1069,7 +1252,12 @@ int RunPropertyWindow(const std::wstring& path, const std::wstring& snapshotPng,
     int result = 1;
     {
         ActivationContext actctx;
-        DPI_AWARENESS_CONTEXT oldDpi = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        // Per-monitor DPI aware: laid out for each monitor's scale and re-laid
+        // out when moved between monitors. PLUGINPROPS_DPI_UNAWARE renders the
+        // 100% layout instead (for testing).
+        bool unaware = GetEnvironmentVariableW(L"PLUGINPROPS_DPI_UNAWARE", nullptr, 0) > 0;
+        DPI_AWARENESS_CONTEXT oldDpi = SetThreadDpiAwarenessContext(
+            unaware ? DPI_AWARENESS_CONTEXT_UNAWARE : DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         INITCOMMONCONTROLSEX icc{sizeof(icc), ICC_TAB_CLASSES | ICC_LISTVIEW_CLASSES | ICC_STANDARD_CLASSES};
         InitCommonControlsEx(&icc);
         {
