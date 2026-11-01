@@ -27,7 +27,6 @@ namespace {
 constexpr UINT WM_APP_SCANDONE = WM_APP + 1;
 constexpr int IDC_TAB = 100;
 constexpr int IDC_LIST = 101;
-constexpr int IDC_APPLY = 102;
 constexpr int IDM_COPY_VALUE = 1;
 constexpr int IDM_COPY_ALL = 2;
 constexpr wchar_t kDialogClass[] = L"PluginPropertiesDialog";
@@ -60,6 +59,8 @@ struct Palette {
     COLORREF groupText;
     COLORREF groupLine;
     COLORREF border;     // list outline
+    // Row highlights, dark mode only (light mode uses the list visual style).
+    COLORREF hot = 0, selected = 0, selectedHot = 0, selectedInactive = 0;
 };
 
 bool HighContrastOn() {
@@ -98,6 +99,10 @@ Palette CurrentPalette() {
         p.groupText = RGB(153, 199, 255);
         p.groupLine = RGB(62, 72, 92);
         p.border = RGB(86, 86, 86);
+        p.hot = RGB(45, 45, 45);
+        p.selected = RGB(65, 65, 65);
+        p.selectedHot = RGB(77, 77, 77);
+        p.selectedInactive = RGB(55, 55, 55);
     } else {
         p.window = p.page = GetSysColor(COLOR_3DFACE);
         p.tabBorder = RGB(217, 217, 217);
@@ -267,6 +272,15 @@ public:
         SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
         RedrawWindow(hwnd_, nullptr, nullptr, RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
+    }
+
+    // Snapshot testing: show a selected and a hovered row.
+    void TestHighlight(int selected, int hot) {
+        if (selected >= 0 && selected < static_cast<int>(rows_.size())) sel_ = selected;
+        if (hot >= 0 && hot < static_cast<int>(rows_.size())) hot_ = hot;
+        focused_ = true;
+        InvalidateRect(hwnd_, nullptr, FALSE);
+        UpdateWindow(hwnd_);
     }
 
 private:
@@ -526,7 +540,17 @@ private:
                                      : LISS_HOT;
                 RECT sr = rr;
                 InflateRect(&sr, -Scale(1, dpi_), 0);
-                if (theme_) {
+                if (palette_.dark) {
+                    // The dark list style still draws light-blue highlights, so
+                    // dark mode uses Explorer's grey hover/selection fills.
+                    COLORREF fill = state == LISS_HOT              ? palette_.hot
+                                    : state == LISS_SELECTEDNOTFOCUS ? palette_.selectedInactive
+                                    : state == LISS_HOTSELECTED      ? palette_.selectedHot
+                                                                     : palette_.selected;
+                    HBRUSH b = CreateSolidBrush(fill);
+                    FillRect(dc, &sr, b);
+                    DeleteObject(b);
+                } else if (theme_) {
                     DrawThemeBackground(theme_, dc, LVP_LISTITEM, state, &sr, nullptr);
                 } else {
                     FillRect(dc, &sr, GetSysColorBrush(selected ? COLOR_HIGHLIGHT : COLOR_BTNFACE));
@@ -791,7 +815,7 @@ private:
     std::wstring snapshot_;
     int cascade_ = 0;
     HWND hwnd_ = nullptr;
-    HWND tab_ = nullptr, list_ = nullptr, ok_ = nullptr, cancel_ = nullptr, apply_ = nullptr;
+    HWND tab_ = nullptr, list_ = nullptr, ok_ = nullptr, cancel_ = nullptr;
     UINT dpi_ = 96;
     HFONT font_ = nullptr, groupFont_ = nullptr;
     HICON iconSmall_ = nullptr, iconBig_ = nullptr;
@@ -811,7 +835,7 @@ private:
         windowBrush_ = CreateSolidBrush(palette_.window);
         BOOL dark = palette_.dark;
         DwmSetWindowAttribute(hwnd_, kDwmUseImmersiveDarkMode, &dark, sizeof(dark));
-        for (HWND b : {ok_, cancel_, apply_}) SetWindowTheme(b, palette_.dark ? L"DarkMode_Explorer" : L"Explorer", nullptr);
+        for (HWND b : {ok_, cancel_}) SetWindowTheme(b, palette_.dark ? L"DarkMode_Explorer" : L"Explorer", nullptr);
         PropertyList::From(list_)->SetPalette(palette_);
         RedrawWindow(hwnd_, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN);
     }
@@ -895,7 +919,7 @@ private:
         LOGFONTW glf = ncm.lfMessageFont;
         glf.lfHeight = MulDiv(glf.lfHeight, 7, 6);
         groupFont_ = CreateFontIndirectW(&glf);
-        for (HWND h : {tab_, ok_, cancel_, apply_}) SendMessageW(h, WM_SETFONT, reinterpret_cast<WPARAM>(font_), TRUE);
+        for (HWND h : {tab_, ok_, cancel_}) SendMessageW(h, WM_SETFONT, reinterpret_cast<WPARAM>(font_), TRUE);
         PropertyList::From(list_)->SetDpi(dpi_, font_, groupFont_);
         if (oldFont) DeleteObject(oldFont);
         if (oldGroup) DeleteObject(oldGroup);
@@ -913,7 +937,7 @@ private:
                              ch - s(kListY) - s(kListBottom), SWP_NOZORDER | SWP_NOACTIVATE);
         int by = ch - s(kButtonBottom) - s(kButtonH);
         int bx = cw - s(kButtonRight) - s(kButtonW);
-        for (HWND b : {apply_, cancel_, ok_}) {
+        for (HWND b : {cancel_, ok_}) {
             dwp = DeferWindowPos(dwp, b, nullptr, bx, by, s(kButtonW), s(kButtonH), SWP_NOZORDER | SWP_NOACTIVATE);
             bx -= s(kButtonW) + s(kButtonGap);
         }
@@ -1075,6 +1099,10 @@ private:
         scanDone_ = true;
         PropertyList::From(list_)->SetRows(BuildRows());
         if (!snapshot_.empty()) {
+            // PLUGINPROPS_TEST_HIGHLIGHT=1: capture with row 2 selected and
+            // row 4 hovered, to check the highlight colours.
+            if (GetEnvironmentVariableW(L"PLUGINPROPS_TEST_HIGHLIGHT", nullptr, 0) > 0)
+                PropertyList::From(list_)->TestHighlight(2, 4);
             Snapshot();
             DestroyWindow(hwnd_);
         }
@@ -1118,9 +1146,6 @@ private:
                                       0, 0, hwnd_, CtrlId(IDOK), g_hInst, nullptr);
                 cancel_ = CreateWindowExW(0, WC_BUTTONW, L"Cancel", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
                                           0, 0, 0, 0, hwnd_, CtrlId(IDCANCEL), g_hInst, nullptr);
-                apply_ = CreateWindowExW(0, WC_BUTTONW, L"&Apply",
-                                         WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_DISABLED | BS_PUSHBUTTON, 0, 0, 0, 0,
-                                         hwnd_, CtrlId(IDC_APPLY), g_hInst, nullptr);
                 // The tab control is drawn first, under the list.
                 SetWindowPos(tab_, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                 SetWindowSubclass(tab_, &PropertyDialog::TabProc, 1, reinterpret_cast<DWORD_PTR>(this));
