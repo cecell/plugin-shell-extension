@@ -71,16 +71,14 @@ GroupScan ScanGroups(IStream* stream, const PluginHeader& header);
 //   True     - can be flagged as is: new records and their object IDs fit the
 //              range for its header (< 1.71: 2,048 in 0x800-0xFFF; 1.71+:
 //              4,096 in 0x000-0xFFF)
-//   Compact  - few enough new records, but some IDs are outside that range
 //   SaveInCk - header < 1.71 whose new records all fit 0x000-0xFFF but not
 //              the old rules (IDs below 0x800, or 2,049-4,096 of them):
 //              resaving in the newer CK (header 1.71) makes it fit
-//   SaveAndCompact - header < 1.71, 2,049-4,096 new records, some IDs
-//              outside 0x000-0xFFF: resave, then compact
-//   False    - anything else (more than 4,096 new records)
+//   False    - anything else, including plugins that would need compacting
+//              (renumbering), which is deliberately not suggested
 //   Corrupted - the record walk failed
 // No new records at all (overrides only) is True.
-enum class EslStatus { Already, True, Compact, SaveInCk, SaveAndCompact, False, Corrupted };
+enum class EslStatus { Already, True, SaveInCk, False, Corrupted };
 EslStatus ClassifyEsl(const PluginHeader& header, const GroupScan& scan);
 // True when the light result needs object IDs below 0x800, which only game
 // version 1.6.1130 or later loads ("Requires v1.6.1130 or later").
