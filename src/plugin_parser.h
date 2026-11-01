@@ -49,6 +49,9 @@ struct GroupScan {
     // fits the light range for the HEDR version. Settled when ok, or when false
     // (a violation found before an error is still a violation).
     bool eslCapable = true;
+    // Deleted placed objects and navmeshes (REFR, ACHR, P***, NAVM with the
+    // Deleted flag): nonzero types only, alphabetical.
+    std::vector<GroupCount> deleted;
 };
 
 PluginHeader ReadPluginHeader(const std::wstring& path);

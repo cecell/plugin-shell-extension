@@ -774,7 +774,7 @@ private:
         if (!header_.ok) {
             row(L"Error", header_.error);
         } else {
-            row(L"Header ver", header_.hasHedr ? VersionText(header_.version) : L"");
+            row(L"Header version", header_.hasHedr ? VersionText(header_.version) : L"");
             row(L"Records", header_.hasHedr ? GroupDigits(static_cast<uint32_t>(header_.numRecords)) : L"");
             row(L"Flags", FlagsText(header_.flags));
             row(L"Light", header_.light ? L"True" : L"False");
@@ -788,27 +788,35 @@ private:
                 else eslable = scan_.ok ? L"True" : L"Unknown";
             }
             row(L"ESLable", eslable);
-            row(L"Author", header_.author);
-            row(L"Description", header_.description);
+            row(L"Author - CNAM", header_.author);
+            row(L"Description - SNAM", header_.description);
             std::wstring masters;
-            for (const auto& m : header_.masters) {
+            for (size_t i = 0; i < header_.masters.size(); ++i) {
                 if (!masters.empty()) masters += L"\r\n";
-                masters += m;
+                masters += L"[" + std::to_wstring(i) + L"] " + header_.masters[i];
             }
             row(L"Masters", masters);
 
-            group(L"Contents");
-            std::wstring grups;
-            if (!scanDone_) {
-                grups = L"Counting…";
-            } else {
-                for (const auto& g : scan_.groups) {
-                    if (!grups.empty()) grups += L", ";
-                    grups += g.label + kNbsp + L"(" + std::to_wstring(g.records) + L")";
+            // "TYPE (n), TYPE (n), ..." with a no-break space so a type never
+            // wraps away from its count.
+            auto countList = [](const std::vector<GroupCount>& counts) {
+                std::wstring s;
+                for (const auto& c : counts) {
+                    if (!s.empty()) s += L", ";
+                    s += c.label + kNbsp + L"(" + std::to_wstring(c.records) + L")";
                 }
-                if (!scan_.error.empty()) grups += (grups.empty() ? L"" : L"\r\n") + scan_.error;
+                return s;
+            };
+            group(L"Contents");
+            std::wstring types = L"Counting…";
+            std::wstring deleted = L"Counting…";
+            if (scanDone_) {
+                types = countList(scan_.groups);
+                if (!scan_.error.empty()) types += (types.empty() ? L"" : L"\r\n") + scan_.error;
+                deleted = scan_.deleted.empty() ? (scan_.ok ? L"None" : L"") : countList(scan_.deleted);
             }
-            row(L"GRUPs", grups);
+            row(L"Record types", types);
+            row(L"Deleted forms", deleted);
             if (!header_.error.empty()) row(L"Warning", header_.error);
         }
 
