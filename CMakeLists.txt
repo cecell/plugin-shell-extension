@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(PluginProperties VERSION 1.3.0 LANGUAGES CXX RC)
+project(PluginProperties VERSION 1.4.0 LANGUAGES CXX RC)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,12 +17,13 @@ add_library(ppcore STATIC
     src/plugin_parser.cpp
     src/registration.cpp)
 target_include_directories(ppcore PUBLIC src)
-target_link_libraries(ppcore PUBLIC shlwapi)
+target_link_libraries(ppcore PUBLIC shlwapi propsys)
 
 add_library(PluginProperties SHARED
     src/dllmain.cpp
     src/context_menu.cpp
     src/property_window.cpp
+    src/property_handler.cpp
     src/PluginProperties.def
     src/PluginProperties.rc
     src/PluginProperties.manifest)
@@ -31,6 +32,9 @@ target_link_libraries(PluginProperties PRIVATE ppcore comctl32 uxtheme shell32 o
 
 add_executable(plugininfo tools/plugininfo.cpp)
 target_link_libraries(plugininfo PRIVATE ppcore)
+
+add_executable(proptest tools/proptest.cpp)
+target_link_libraries(proptest PRIVATE ppcore shell32 ole32 shlwapi)
 
 add_executable(menutest tools/menutest.cpp)
 target_link_libraries(menutest PRIVATE ppcore shell32 ole32)
@@ -51,6 +55,8 @@ if(ISCC_EXE)
         COMMAND ${ISCC_EXE} /Q /DAppVersion=${PROJECT_VERSION} /DBinDir=${CMAKE_BINARY_DIR}/bin
             /DOutDir=${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/installer/PluginProperties.iss
         DEPENDS PluginProperties ${CMAKE_SOURCE_DIR}/installer/PluginProperties.iss
+            ${CMAKE_SOURCE_DIR}/installer/PluginProperties.propdesc ${CMAKE_SOURCE_DIR}/LICENSE
+            ${CMAKE_SOURCE_DIR}/README.md ${CMAKE_SOURCE_DIR}/docs/screenshot.png
         COMMENT "Building installer with Inno Setup")
     add_custom_target(installer ALL DEPENDS ${PP_SETUP})
 else()

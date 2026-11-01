@@ -4,6 +4,7 @@
 #pragma once
 
 #include <windows.h>
+#include <objidl.h>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -52,12 +53,21 @@ struct GroupScan {
     // Deleted placed objects and navmeshes (REFR, ACHR, P***, NAVM with the
     // Deleted flag): nonzero types only, alphabetical.
     std::vector<GroupCount> deleted;
+    uint64_t totalDeleted = 0;
 };
 
 PluginHeader ReadPluginHeader(const std::wstring& path);
+// Same from a stream (Explorer's property handler); fileName is only used for
+// the .esl extension check.
+PluginHeader ReadPluginHeader(IStream* stream, const std::wstring& fileName);
 // Walks every GRUP after the TES4 record; header supplies the start offset and
 // the master count / HEDR version for the ESL check.
 GroupScan ScanGroups(const std::wstring& path, const PluginHeader& header);
+GroupScan ScanGroups(IStream* stream, const PluginHeader& header);
+
+// "Already flagged" for a plugin that loads as light, else True / False, or
+// Unknown when the scan failed before finding a violation.
+std::wstring EslableText(const PluginHeader& header, const GroupScan& scan);
 
 // "ESM, ESL, Localized" in that order; empty when no bit is set.
 std::wstring FlagsText(uint32_t flags);

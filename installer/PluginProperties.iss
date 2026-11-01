@@ -3,7 +3,10 @@
 ;   ISCC.exe /DAppVersion=1.0.0 /DBinDir=..\build\bin /DOutDir=..\build installer\PluginProperties.iss
 ;
 ; Installs per user (no admin prompt) into %LOCALAPPDATA%\Programs\Plugin Properties
-; and registers the context-menu handler under HKCU\Software\Classes.
+; and registers the context-menu handler under HKCU\Software\Classes. The
+; optional "columns" task additionally registers the property handler and its
+; schema machine-wide, which Windows only accepts from an elevated process: it
+; runs "regsvr32 /n /i:columns" through a UAC prompt.
 
 #ifndef AppVersion
   #define AppVersion "1.0.0"
@@ -19,6 +22,11 @@
 #define Clsid "{{1D4348E0-3A45-489E-8022-6A2A883E9D94}"
 #define ClsidKey "Software\Classes\CLSID\" + Clsid
 #define Sfa "Software\Classes\SystemFileAssociations"
+#define PropHandlerClsid "{E0BA20B2-0391-45F5-80C3-07E306E945E9}"
+#define P "Cecell.PluginProperties."
+; Details pane (Alt+Shift+P) and hover tooltip contents.
+#define PreviewDetails "prop:" + P + "HeaderVersion;" + P + "RecordCount;" + P + "Flags;" + P + "Light;" + P + "MasterCount;" + P + "DeletedCount;" + P + "ESLable;" + P + "Masters;*System.DateModified;*System.Size;*System.DateCreated"
+#define InfoTip "prop:System.ItemTypeText;System.Size;System.DateModified;" + P + "RecordCount;" + P + "Masters"
 
 [Setup]
 AppId={{27A531A2-EEF9-4E30-BDE9-3295D03F4D3E}
@@ -32,6 +40,9 @@ VersionInfoDescription={#AppName} Setup
 PrivilegesRequired=lowest
 DefaultDirName={autopf}\{#AppName}
 DisableProgramGroupPage=yes
+; The licence is the first page.
+DisableWelcomePage=yes
+LicenseFile=..\LICENSE
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
@@ -52,8 +63,15 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Messages]
 FinishedLabelNoIcons=Setup has finished installing [name] on your computer.%n%nRight-click a .esp, .esm or .esl file and choose "Plugin properties". On Windows 11 it is under "Show more options" (or Shift+right-click).
 
+[Tasks]
+Name: "columns"; Description: "Add plugin fields as Explorer columns, in the details pane and in the file tooltip (asks for administrator rights)"
+
 [Files]
 Source: "{#BinDir}\PluginProperties.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "PluginProperties.propdesc"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\docs\screenshot.png"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
 ; Left behind by the pre-Inno setup program.
@@ -82,10 +100,59 @@ Root: HKA; Subkey: "{#Sfa}\.esl"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esl\shellex"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esl\shellex\ContextMenuHandlers"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esl\shellex\ContextMenuHandlers\PluginProperties"; ValueType: string; ValueData: "{#Clsid}"; Flags: uninsdeletekey
+; Details pane and tooltip fields (per user; the properties themselves come
+; from the machine-wide handler the columns task registers).
+Root: HKA; Subkey: "{#Sfa}\.esp"; ValueType: string; ValueName: "PreviewDetails"; ValueData: "{#PreviewDetails}"; Flags: uninsdeletevalue; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.esp"; ValueType: string; ValueName: "InfoTip"; ValueData: "{#InfoTip}"; Flags: uninsdeletevalue; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.esm"; ValueType: string; ValueName: "PreviewDetails"; ValueData: "{#PreviewDetails}"; Flags: uninsdeletevalue; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.esm"; ValueType: string; ValueName: "InfoTip"; ValueData: "{#InfoTip}"; Flags: uninsdeletevalue; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.esl"; ValueType: string; ValueName: "PreviewDetails"; ValueData: "{#PreviewDetails}"; Flags: uninsdeletevalue; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.esl"; ValueType: string; ValueName: "InfoTip"; ValueData: "{#InfoTip}"; Flags: uninsdeletevalue; Tasks: columns
 ; Uninstall entry written by the pre-Inno setup program.
 Root: HKA; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\PluginProperties"; Flags: deletekey dontcreatekey
 
+[Run]
+Filename: "{app}\README.md"; Description: "Open the README"; Flags: postinstall shellexec skipifsilent nowait
+
 [Code]
+var
+  LicenseCheck: TNewCheckBox;
+
+// --- Licence page: a checkbox instead of Inno's accept / decline radios ---
+
+procedure SyncLicense;
+begin
+  WizardForm.LicenseAcceptedRadio.Checked := LicenseCheck.Checked;
+  WizardForm.LicenseNotAcceptedRadio.Checked := not LicenseCheck.Checked;
+  WizardForm.NextButton.Enabled := LicenseCheck.Checked;
+end;
+
+procedure LicenseCheckClick(Sender: TObject);
+begin
+  SyncLicense;
+end;
+
+procedure InitializeWizard;
+begin
+  WizardForm.LicenseAcceptedRadio.Visible := False;
+  WizardForm.LicenseNotAcceptedRadio.Visible := False;
+  LicenseCheck := TNewCheckBox.Create(WizardForm);
+  LicenseCheck.Parent := WizardForm.LicensePage;
+  LicenseCheck.Left := WizardForm.LicenseAcceptedRadio.Left;
+  LicenseCheck.Top := WizardForm.LicenseAcceptedRadio.Top;
+  LicenseCheck.Width := WizardForm.LicenseMemo.Width;
+  LicenseCheck.Height := WizardForm.LicenseAcceptedRadio.Height;
+  LicenseCheck.Caption := 'I agree to the terms of the GNU General Public License v3.0';
+  LicenseCheck.OnClick := @LicenseCheckClick;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = wpLicense then
+    SyncLicense;
+end;
+
+// --- Moving a loaded DLL aside ---
 // A DLL that Explorer has loaded cannot be overwritten or deleted, but it can
 // be renamed. Move it aside so the new copy (or the uninstall) can proceed;
 // the leftover is removed by the next install or when it is no longer loaded.
@@ -103,16 +170,54 @@ begin
     Log('Could not move aside ' + Path);
 end;
 
+// --- Machine-wide property handler (columns task) ---
+
+function ColumnsRegistered: Boolean;
+var
+  Value: String;
+begin
+  Result := RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\Windows\CurrentVersion\PropertySystem\PropertyHandlers\.esp', '', Value)
+    and (CompareText(Value, '{#PropHandlerClsid}') = 0);
+end;
+
+// Runs regsvr32 /n /i:columns (or /u ...) on the installed DLL through a UAC
+// prompt. Returns False if the prompt was declined or registration failed.
+function RunColumnsRegistration(Install: Boolean): Boolean;
+var
+  Params: String;
+  Code: Integer;
+begin
+  Params := '/s /n /i:columns "' + ExpandConstant('{app}\PluginProperties.dll') + '"';
+  if not Install then
+    Params := '/u ' + Params;
+  Result := ShellExec('runas', ExpandConstant('{sys}\regsvr32.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, Code)
+    and (Code = 0);
+  Log(Format('regsvr32 %s -> ok=%d code=%d', [Params, Ord(Result), Code]));
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then
     MoveAside(ExpandConstant('{app}\PluginProperties.dll'), ExpandConstant('{app}'));
+  if CurStep = ssPostInstall then begin
+    if WizardIsTaskSelected('columns') then begin
+      if not RunColumnsRegistration(True) then
+        SuppressibleMsgBox('The Explorer columns could not be registered (administrator rights were declined or registration failed).' + #13#10#13#10 +
+          'The right-click "Plugin properties" window is installed and works without them. Run setup again to retry.',
+          mbInformation, MB_OK, IDOK);
+    end else if ColumnsRegistered then
+      RunColumnsRegistration(False);  // the task was unticked on an update
+  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
-  // Moved to %TEMP% (same volume in the usual case) so the program folder can
-  // be removed even while Explorer still holds the DLL.
-  if CurUninstallStep = usUninstall then
+  if CurUninstallStep = usUninstall then begin
+    // Unregister while the DLL and schema are still in place.
+    if ColumnsRegistered then
+      RunColumnsRegistration(False);
+    // Moved to %TEMP% (same volume in the usual case) so the program folder
+    // can be removed even while Explorer still holds the DLL.
     MoveAside(ExpandConstant('{app}\PluginProperties.dll'), GetTempDir);
+  end;
 end;

@@ -19,4 +19,16 @@ inline constexpr const wchar_t* kExtensions[] = {L".esp", L".esm", L".esl"};
 HRESULT RegisterHandler(HKEY root, const std::wstring& dllPath);
 HRESULT UnregisterHandler(HKEY root);
 
+// Property handler: the Explorer columns / details pane / tooltip fields.
+// {E0BA20B2-0391-45F5-80C3-07E306E945E9}
+inline constexpr GUID kClsidPropertyHandler = {0xe0ba20b2, 0x0391, 0x45f5, {0x80, 0xc3, 0x07, 0xe3, 0x06, 0xe9, 0x45, 0xe9}};
+inline constexpr wchar_t kPropertyHandlerClsidString[] = L"{E0BA20B2-0391-45F5-80C3-07E306E945E9}";
+inline constexpr wchar_t kSchemaFileName[] = L"PluginProperties.propdesc";
+
+// Machine-wide only: Windows reads property handlers and schemas from HKLM,
+// so this needs an elevated caller (regsvr32 /n /i:columns, run as admin).
+// schemaPath is the .propdesc registered with PSRegisterPropertySchema.
+HRESULT RegisterPropertyHandler(const std::wstring& dllPath, const std::wstring& schemaPath);
+HRESULT UnregisterPropertyHandler(const std::wstring& schemaPath);
+
 }  // namespace pp

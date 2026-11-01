@@ -860,7 +860,8 @@ private:
         ti.pszText = text;
         ti.cchTextMax = ARRAYSIZE(text);
         TabCtrl_GetItem(tab, 0, &ti);
-        HGDIOBJ old = SelectObject(dc, font_);
+        HFONT font = font_ ? font_ : reinterpret_cast<HFONT>(SendMessageW(tab, WM_GETFONT, 0, 0));
+        HGDIOBJ old = SelectObject(dc, font ? font : GetStockObject(DEFAULT_GUI_FONT));
         SetBkMode(dc, TRANSPARENT);
         SetTextColor(dc, palette_.text);
         DrawTextW(dc, text, -1, &inner, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
@@ -934,14 +935,7 @@ private:
             row(L"Light", header_.light ? L"True" : L"False");
             // A plugin that already loads as light needs no check; otherwise
             // it needs the full record walk, so it fills in with the GRUP scan.
-            std::wstring eslable = L"Checking…";
-            if (header_.light) {
-                eslable = L"Already flagged";
-            } else if (scanDone_) {
-                if (!scan_.eslCapable) eslable = L"False";
-                else eslable = scan_.ok ? L"True" : L"Unknown";
-            }
-            row(L"ESLable", eslable);
+            row(L"ESLable", header_.light || scanDone_ ? EslableText(header_, scan_) : L"Checking…");
             row(L"Author - CNAM", header_.author);
             row(L"Description - SNAM", header_.description);
             std::wstring masters;
