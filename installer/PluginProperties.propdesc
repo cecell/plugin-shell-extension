@@ -11,14 +11,14 @@
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="16"/>
       <labelInfo label="Header Ver"/>
       <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
-      <displayInfo displayType="String" defaultColumnWidth="8"/>
+      <displayInfo displayType="String" defaultColumnWidth="8" alignment="Right"/>
     </propertyDescription>
 
     <propertyDescription name="Cecell.PluginProperties.RecordCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="3">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
       <labelInfo label="#Records"/>
       <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
-      <displayInfo displayType="Number" defaultColumnWidth="9"/>
+      <displayInfo displayType="Number" defaultColumnWidth="9" alignment="Right"/>
     </propertyDescription>
 
     <propertyDescription name="Cecell.PluginProperties.Flags" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="4">
@@ -30,23 +30,23 @@
 
     <propertyDescription name="Cecell.PluginProperties.Light" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="5">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="16"/>
-      <labelInfo label="Light"/>
+      <labelInfo label="Is Light"/>
       <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
-      <displayInfo displayType="String" defaultColumnWidth="6"/>
+      <displayInfo displayType="String" defaultColumnWidth="7" alignment="Center"/>
     </propertyDescription>
 
     <propertyDescription name="Cecell.PluginProperties.MasterCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="6">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
       <labelInfo label="#Masters"/>
       <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
-      <displayInfo displayType="Number" defaultColumnWidth="8"/>
+      <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
     </propertyDescription>
 
     <propertyDescription name="Cecell.PluginProperties.DeletedCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="7">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
       <labelInfo label="#Deleted"/>
       <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
-      <displayInfo displayType="Number" defaultColumnWidth="8"/>
+      <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
     </propertyDescription>
 
     <propertyDescription name="Cecell.PluginProperties.ESLable" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="8">

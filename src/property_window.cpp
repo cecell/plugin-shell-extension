@@ -959,7 +959,7 @@ private:
             row(L"Light", header_.light ? L"True" : L"False");
             // A plugin that already loads as light needs no check; otherwise
             // it needs the full record walk, so it fills in with the GRUP scan.
-            row(L"ESLable", header_.light || scanDone_ ? EslableText(header_, scan_) : L"Checking…");
+            row(L"ESLable", header_.light || scanDone_ ? EslStatusText(ClassifyEsl(header_, scan_), false) : L"Checking…");
             row(L"Author - CNAM", header_.author);
             row(L"Description - SNAM", header_.description);
             std::wstring masters;

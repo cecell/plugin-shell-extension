@@ -74,10 +74,10 @@ properties:
 | Header Ver | `HEDR` version, e.g. `1.71` |
 | #Records | `HEDR` record count (number, sorts numerically) |
 | Flags | `ESM, ESL, Localized` |
-| Light | True / False |
+| Is Light | True / False (centred) |
 | #Masters | number of masters |
 | #Deleted | deleted references + navmeshes (the Deleted forms total), a hint that the plugin needs cleaning; blank when there are none |
-| ESLable | Already (already light) / True / False |
+| ESLable | Already (already light); True (new records fit the light range for its header: < 1.71 up to 2,048 in 800-FFF, 1.71+ up to 4,096 in 000-FFF); Compact (few enough new records but some IDs outside that range); Save in CK (< 1.71 with 2,049-4,096 new records all in 000-FFF, fits once resaved with a 1.71 header); False otherwise |
 
 Turn them on in Details view: right-click a column header > **More…**. The
 details pane (Alt+Shift+P) shows all of them plus the masters list, and the

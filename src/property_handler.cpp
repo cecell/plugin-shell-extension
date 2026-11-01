@@ -156,7 +156,7 @@ private:
         GroupScan scan = ScanGroups(stream_, header_);
         summary_.ok = scan.ok;
         summary_.deleted = scan.totalDeleted;
-        summary_.eslable = EslableText(header_, scan);
+        summary_.eslable = EslStatusText(ClassifyEsl(header_, scan), true);
         if (scan.ok && !std::get<0>(key_).empty()) {
             std::lock_guard<std::mutex> c(g_cacheLock);
             if (g_cache.size() >= kCacheLimit) g_cache.clear();
