@@ -19,8 +19,8 @@ enum PluginPid : DWORD {
     kPidFlags = 4,          // String  "ESM, ESL, Localized"
     kPidLight = 5,          // String  True / False
     kPidMasterCount = 6,    // UInt32
-    kPidDeletedCount = 7,   // UInt32  deleted REFR/ACHR/P***/NAVM (full scan)
-    kPidEslable = 8,        // String  Already flagged / True / False (full scan)
+    kPidDeletedCount = 7,   // UInt32  deleted REFR/ACHR/P***/NAVM, empty when 0 (full scan)
+    kPidEslable = 8,        // String  Already / True / False (full scan)
     kPidMasters = 9,        // String vector, shown "a; b; c"
 };
 

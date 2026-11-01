@@ -60,7 +60,7 @@ Shift+right-click). Getting into the new top-level menu needs an
 `IExplorerCommand` handler plus a signed sparse MSIX package, which this
 project does not do.
 
-The wizard opens on the GPL-3.0 licence, which must be accepted to continue,
+The wizard follows the Windows light/dark mode. It opens on the GPL-3.0 licence, which must be accepted to continue,
 and offers to open this README when it finishes.
 
 ## Explorer columns, details pane and tooltip
@@ -76,8 +76,8 @@ properties:
 | Flags | `ESM, ESL, Localized` |
 | Light | True / False |
 | #Masters | number of masters |
-| #Deleted | deleted references + navmeshes (the Deleted forms total), a hint that the plugin needs cleaning |
-| ESLable | Already flagged / True / False |
+| #Deleted | deleted references + navmeshes (the Deleted forms total), a hint that the plugin needs cleaning; blank when there are none |
+| ESLable | Already (already light) / True / False |
 
 Turn them on in Details view: right-click a column header > **More…**. The
 details pane (Alt+Shift+P) shows all of them plus the masters list, and the
@@ -100,7 +100,7 @@ GPL-3.0. See [LICENSE](LICENSE).
 ## Build
 
 Requires Visual Studio with the MSVC 14.44 (v143) toolset; CMake and Ninja come
-from the VS install / PATH. The installer needs Inno Setup 6 or 7
+from the VS install / PATH. The installer needs Inno Setup 6.6 or newer
 (`winget install JRSoftware.InnoSetup`). Without it the build still produces
 the DLL and skips the installer.
 

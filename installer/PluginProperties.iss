@@ -1,4 +1,4 @@
-; Inno Setup (6 or 7) script for the Plugin Properties shell extension.
+; Inno Setup (6.6 or newer) script for the Plugin Properties shell extension.
 ; Built by CMake (target "installer"); can also be compiled by hand:
 ;   ISCC.exe /DAppVersion=1.0.0 /DBinDir=..\build\bin /DOutDir=..\build installer\PluginProperties.iss
 ;
@@ -46,7 +46,8 @@ LicenseFile=..\LICENSE
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
-WizardStyle=modern
+; Follows the Windows light/dark app mode (Inno Setup 6.6 or newer).
+WizardStyle=modern dynamic
 Compression=lzma2/max
 SolidCompression=yes
 ChangesAssociations=yes
@@ -64,7 +65,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 FinishedLabelNoIcons=Setup has finished installing [name] on your computer.%n%nRight-click a .esp, .esm or .esl file and choose "Plugin properties". On Windows 11 it is under "Show more options" (or Shift+right-click).
 
 [Tasks]
-Name: "columns"; Description: "Add plugin fields as Explorer columns, in the details pane and in the file tooltip (asks for administrator rights)"
+Name: "columns"; Description: "Add columns to Explorer, the details pane and files tooltip (requires admin rights)"
 
 [Files]
 Source: "{#BinDir}\PluginProperties.dll"; DestDir: "{app}"; Flags: ignoreversion
@@ -117,6 +118,7 @@ Filename: "{app}\README.md"; Description: "Open the README"; Flags: postinstall 
 [Code]
 var
   LicenseCheck: TNewCheckBox;
+  AiNotice, InnoCredit: TNewStaticText;
 
 // --- Licence page: a checkbox instead of Inno's accept / decline radios ---
 
@@ -132,6 +134,32 @@ begin
   SyncLicense;
 end;
 
+// --- Tasks page: a notice under the task list and the Inno Setup credit at
+// the bottom of the page ---
+
+function AddPageText(const Caption: String): TNewStaticText;
+begin
+  Result := TNewStaticText.Create(WizardForm);
+  Result.Parent := WizardForm.SelectTasksPage;
+  Result.AutoSize := False;
+  Result.WordWrap := True;
+  Result.Left := WizardForm.TasksList.Left;
+  Result.Width := WizardForm.TasksList.Width;
+  Result.Caption := Caption;
+  Result.AdjustHeight;
+end;
+
+procedure AddTasksPageText;
+begin
+  WizardForm.TasksList.Height := ScaleY(56);
+  AiNotice := AddPageText('Plugin Properties was written with the assistance of Claude by Anthropic. ' +
+    'Many have negative feelings towards AI but it has been a life saver for people like me who struggle ' +
+    'with cognitive disabilities. I hope this software is helpful.');
+  AiNotice.Top := WizardForm.TasksList.Top + WizardForm.TasksList.Height + ScaleY(16);
+  InnoCredit := AddPageText('Uses Inno Setup, Copyright (C) Jordan Russell, https://jrsoftware.org/');
+  InnoCredit.Top := WizardForm.SelectTasksPage.Height - InnoCredit.Height;
+end;
+
 procedure InitializeWizard;
 begin
   WizardForm.LicenseAcceptedRadio.Visible := False;
@@ -144,6 +172,7 @@ begin
   LicenseCheck.Height := WizardForm.LicenseAcceptedRadio.Height;
   LicenseCheck.Caption := 'I agree to the terms of the GNU General Public License v3.0';
   LicenseCheck.OnClick := @LicenseCheckClick;
+  AddTasksPageText;
 end;
 
 procedure CurPageChanged(CurPageID: Integer);

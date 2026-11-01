@@ -118,11 +118,13 @@ public:
                 return InitPropVariantFromStringVector(names.data(), static_cast<ULONG>(names.size()), pv);
             }
             case kPidEslable:
-                if (header_.light) return InitPropVariantFromString(L"Already flagged", pv);
+                // Short form for the column; the dialog says "Already flagged".
+                if (header_.light) return InitPropVariantFromString(L"Already", pv);
                 return InitPropVariantFromString(Scan().eslable.c_str(), pv);
             case kPidDeletedCount: {
+                // Blank rather than 0, so plugins that need cleaning stand out.
                 const ScanSummary& s = Scan();
-                return s.ok ? InitPropVariantFromUInt32(static_cast<ULONG>(s.deleted), pv) : S_OK;
+                return s.ok && s.deleted ? InitPropVariantFromUInt32(static_cast<ULONG>(s.deleted), pv) : S_OK;
             }
         }
         return S_OK;
