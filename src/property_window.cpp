@@ -778,9 +778,12 @@ private:
             row(L"Records", header_.hasHedr ? GroupDigits(static_cast<uint32_t>(header_.numRecords)) : L"");
             row(L"Flags", FlagsText(header_.flags));
             row(L"Light", header_.light ? L"True" : L"False");
-            // Needs the full record walk, so it fills in with the GRUP scan.
+            // A plugin that already loads as light needs no check; otherwise
+            // it needs the full record walk, so it fills in with the GRUP scan.
             std::wstring eslable = L"Checking…";
-            if (scanDone_) {
+            if (header_.light) {
+                eslable = L"Already flagged";
+            } else if (scanDone_) {
                 if (!scan_.eslCapable) eslable = L"False";
                 else eslable = scan_.ok ? L"True" : L"Unknown";
             }
