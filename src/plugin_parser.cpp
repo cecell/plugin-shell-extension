@@ -76,11 +76,21 @@ struct EslCheck {
     bool capable;
 };
 
+// Deleted-record counts (doc section 11): the types xEdit's "Undelete and
+// Disable References" handles for Skyrim SE, the 10 placed-object types plus
+// NAVM. A record is deleted when bit 0x20 of its header flags is set.
+const char kDeletedTypes[][5] = {"ACHR", "NAVM", "PARW", "PBAR", "PBEA", "PCON",
+                                 "PFLA", "PGRE", "PHZD", "PMIS", "REFR"};
+constexpr size_t kDeletedTypeCount = sizeof(kDeletedTypes) / sizeof(kDeletedTypes[0]);
+constexpr uint32_t kRecordFlagDeleted = 0x20;
+
 WalkResult WalkGroups(const uint8_t* base, uint64_t fileSize, uint64_t start, RawGroup* out, size_t capacity,
-                      size_t* outCount, uint64_t* totalGroups, EslCheck* esl, uint64_t* corruptAt) {
+                      size_t* outCount, uint64_t* totalGroups, EslCheck* esl, uint64_t* deleted,
+                      uint64_t* corruptAt) {
     *outCount = 0;
     *totalGroups = 0;
     esl->capable = true;
+    for (size_t t = 0; t < kDeletedTypeCount; ++t) deleted[t] = 0;
     __try {
         uint64_t pos = start;
         while (pos + 24 <= fileSize) {
@@ -125,6 +135,14 @@ WalkResult WalkGroups(const uint8_t* base, uint64_t fileSize, uint64_t start, Ra
                     if (esl->capable && formId != 0 && (formId >> 24) >= esl->numMasters) {
                         uint32_t objectId = formId & 0x00FFFFFF;
                         if (objectId < esl->lowest || objectId > 0xFFF) esl->capable = false;
+                    }
+                    if (U32(r + 8) & kRecordFlagDeleted) {
+                        for (size_t t = 0; t < kDeletedTypeCount; ++t) {
+                            if (SigIs(r, kDeletedTypes[t])) {
+                                ++deleted[t];
+                                break;
+                            }
+                        }
                     }
                     p += 24 + size;
                 }
@@ -315,10 +333,18 @@ GroupScan ScanGroups(const std::wstring& path, const PluginHeader& header) {
     std::vector<RawGroup> raw(4096);
     size_t count = 0;
     uint64_t corruptAt = 0;
+    uint64_t deleted[kDeletedTypeCount] = {};
     WalkResult result = WalkGroups(base, fileSize, firstGroupOffset, raw.data(), raw.size(), &count,
-                                   &scan.totalGroups, &esl, &corruptAt);
+                                   &scan.totalGroups, &esl, deleted, &corruptAt);
     UnmapViewOfFile(base);
     scan.eslCapable = esl.capable;
+    for (size_t t = 0; t < kDeletedTypeCount; ++t) {  // kDeletedTypes is already alphabetical
+        if (!deleted[t]) continue;
+        GroupCount dc;
+        for (size_t c = 0; c < 4; ++c) dc.label += static_cast<wchar_t>(kDeletedTypes[t][c]);
+        dc.records = deleted[t];
+        scan.deleted.push_back(std::move(dc));
+    }
 
     for (size_t i = 0; i < count; ++i) {
         GroupCount gc;

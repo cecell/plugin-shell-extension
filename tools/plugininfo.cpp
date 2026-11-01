@@ -23,22 +23,25 @@ int wmain(int argc, wchar_t** argv) {
             continue;
         }
         if (!h.error.empty()) wprintf(L"warning: %s\n", h.error.c_str());
-        wprintf(L"Header ver: %s\n", h.hasHedr ? pp::VersionText(h.version).c_str() : L"");
+        wprintf(L"Header version: %s\n", h.hasHedr ? pp::VersionText(h.version).c_str() : L"");
         wprintf(L"Records: %d\n", h.numRecords);
         wprintf(L"Flags: %s (0x%X)\n", pp::FlagsText(h.flags).c_str(), h.flags);
         wprintf(L"Light: %s\n", h.light ? L"True" : L"False");
-        wprintf(L"Author: %s\n", h.author.c_str());
-        wprintf(L"Description: %s\n", h.description.c_str());
+        wprintf(L"Author - CNAM: %s\n", h.author.c_str());
+        wprintf(L"Description - SNAM: %s\n", h.description.c_str());
         wprintf(L"Masters:");
-        for (auto& m : h.masters) wprintf(L" [%s]", m.c_str());
+        for (size_t m = 0; m < h.masters.size(); ++m) wprintf(L" [%zu] %s", m, h.masters[m].c_str());
         wprintf(L"\n");
 
         pp::GroupScan s = pp::ScanGroups(argv[i], h);
         if (!s.error.empty()) wprintf(L"scan error: %s\n", s.error.c_str());
         wprintf(L"ESLable: %s\n", h.light ? L"Already flagged" : !s.eslCapable ? L"False" : s.ok ? L"True" : L"Unknown");
-        wprintf(L"GRUPs:");
+        wprintf(L"Record types:");
         for (size_t g = 0; g < s.groups.size(); ++g)
             wprintf(L"%s %s (%llu)", g ? L"," : L"", s.groups[g].label.c_str(), s.groups[g].records);
+        wprintf(L"\nDeleted forms:");
+        for (size_t d = 0; d < s.deleted.size(); ++d)
+            wprintf(L"%s %s (%llu)", d ? L"," : L"", s.deleted[d].label.c_str(), s.deleted[d].records);
         wprintf(L"\n");
         uint64_t sum = s.totalRecords + s.totalGroups;
         bool match = h.hasHedr && sum == static_cast<uint64_t>(static_cast<uint32_t>(h.numRecords));

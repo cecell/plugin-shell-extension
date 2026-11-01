@@ -8,15 +8,16 @@ window styled after the Properties dialog's **Details** tab:
 
 | Property | Source |
 |---|---|
-| Header ver | `HEDR` float, rounded to 2 decimals |
+| Header version | `HEDR` float, rounded to 2 decimals |
 | Records | `HEDR` record count (records + GRUPs, as the CK writes it) |
 | Flags | TES4 flags as text: `ESM`, `ESL`, `Localized` |
 | Light | `.esl` extension, or the ESL flag |
 | ESLable | whether the ESL flag could be set without renumbering anything (Vortex's "Could be light", esplugin's rule): every record new to the plugin has an object ID in `0x800..0xFFF`, or `0x000..0xFFF` for HEDR 1.71+. Computed during the GRUP scan. A plugin that already loads as light shows "Already flagged" |
-| Author | `CNAM` (wraps) |
-| Description | `SNAM` (wraps, keeps line breaks) |
-| Masters | every `MAST`, one per line, in master-index order |
-| GRUPs | top-level GRUPs, alphabetical, `LABEL (records)`; the count is every record inside the group at any depth, so `CELL` includes its placed references and `DIAL` its `INFO`s. Duplicate top-level groups (Skyrim.esm has two `HAZD`) are merged |
+| Author - CNAM | `CNAM` (wraps) |
+| Description - SNAM | `SNAM` (wraps, keeps line breaks) |
+| Masters | every `MAST`, one per line as `[index] name`, in master-index order (the index is the FormID top byte that refers to that master) |
+| Record types | top-level GRUPs, alphabetical, `LABEL (records)`; the count is every record inside the group at any depth, so `CELL` includes its placed references and `DIAL` its `INFO`s. Duplicate top-level groups (Skyrim.esm has two `HAZD`) are merged |
+| Deleted forms | records with the Deleted flag (`0x20`) among the types xEdit's Quick Auto Clean undeletes (`REFR`, `ACHR`, `PGRE`, `PMIS`, `PARW`, `PBAR`, `PBEA`, `PCON`, `PFLA`, `PHZD`) plus `NAVM`, as `TYPE (count)`; nonzero types only, "None" if there are none |
 | Size, Created, Modified, Attributes | formatted by the shell's property system, exactly as the Details tab shows them |
 
 The parsing follows `C:\skqe\db\docs\db\PLUGIN_HEADER_EXTRACTION.md`. The GRUP
