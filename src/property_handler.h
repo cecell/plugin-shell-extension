@@ -20,7 +20,7 @@ enum PluginPid : DWORD {
     kPidLight = 5,          // String  True / False
     kPidMasterCount = 6,    // UInt32
     kPidDeletedCount = 7,   // UInt32  deleted REFR/ACHR/P***/NAVM, empty when 0 (full scan)
-    kPidEslable = 8,        // String  Already / True / Compact / Save in CK / ... (full scan)
+    kPidEslable = 8,        // String  Already / True / Save in CK / False / Corrupted (full scan)
     kPidMasters = 9,        // String vector, shown "a; b; c"
     kPidEslNote = 10,       // String  "Requires v1.6.1130 or later" when it applies (full scan)
 };

@@ -476,17 +476,13 @@ EslStatus ClassifyEsl(const PluginHeader& header, const GroupScan& scan) {
     if (header.light) return EslStatus::Already;
     if (!scan.ok) return EslStatus::Corrupted;
     uint64_t n = scan.newRecords;
-    if (HasNewIdRange(header)) {
-        if (n > 4096) return EslStatus::False;
-        return scan.newIdsIn000 ? EslStatus::True : EslStatus::Compact;
-    }
+    // Plugins that would need compacting (renumbering) count as False: that
+    // is an advanced step, not something to suggest.
+    if (HasNewIdRange(header)) return n <= 4096 && scan.newIdsIn000 ? EslStatus::True : EslStatus::False;
     // Header < 1.71. Resaving in the newer CK gives it a 1.71 header, which
     // opens 0x000..0x7FF, so "Save in CK" fixes IDs that already fit there.
-    if (n <= 2048) {
-        if (scan.newIdsIn800) return EslStatus::True;
-        return scan.newIdsIn000 ? EslStatus::SaveInCk : EslStatus::Compact;
-    }
-    if (n <= 4096) return scan.newIdsIn000 ? EslStatus::SaveInCk : EslStatus::SaveAndCompact;
+    if (n <= 2048 && scan.newIdsIn800) return EslStatus::True;
+    if (n <= 4096 && scan.newIdsIn000) return EslStatus::SaveInCk;
     return EslStatus::False;
 }
 
@@ -494,11 +490,8 @@ bool EslNeedsNewerGame(const PluginHeader& header, const GroupScan& scan, EslSta
     switch (status) {
         case EslStatus::True:  // a 1.71 plugin already using IDs below 0x800
             return HasNewIdRange(header) && !scan.newIdsIn800;
-        case EslStatus::SaveInCk:        // ends with a 1.71 header and IDs below 0x800
-        case EslStatus::SaveAndCompact:  // more than 2,048 new records
+        case EslStatus::SaveInCk:  // ends with a 1.71 header and IDs below 0x800
             return true;
-        case EslStatus::Compact:  // more than 2,048 can only fit from 0x000
-            return HasNewIdRange(header) && scan.newRecords > 2048;
         default:
             return false;
     }
@@ -508,9 +501,7 @@ const wchar_t* EslStatusText(EslStatus status, bool shortForm) {
     switch (status) {
         case EslStatus::Already: return shortForm ? L"Already" : L"Already flagged";
         case EslStatus::True: return L"True";
-        case EslStatus::Compact: return L"Compact";
         case EslStatus::SaveInCk: return L"Save in CK";
-        case EslStatus::SaveAndCompact: return L"Save + Compact";
         case EslStatus::False: return L"False";
         case EslStatus::Corrupted: break;
     }
