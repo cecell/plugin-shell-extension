@@ -60,6 +60,43 @@ Shift+right-click). Getting into the new top-level menu needs an
 `IExplorerCommand` handler plus a signed sparse MSIX package, which this
 project does not do.
 
+The wizard opens on the GPL-3.0 licence, which must be accepted to continue,
+and offers to open this README when it finishes.
+
+## Explorer columns, details pane and tooltip
+
+The setup task **Add plugin fields as Explorer columns…** (on by default)
+registers a property handler, so plugin fields become ordinary shell
+properties:
+
+| Column | Value |
+|---|---|
+| Header Ver | `HEDR` version, e.g. `1.71` |
+| #Records | `HEDR` record count (number, sorts numerically) |
+| Flags | `ESM, ESL, Localized` |
+| Light | True / False |
+| #Masters | number of masters |
+| #Deleted | deleted references + navmeshes (the Deleted forms total), a hint that the plugin needs cleaning |
+| ESLable | Already flagged / True / False |
+
+Turn them on in Details view: right-click a column header > **More…**. The
+details pane (Alt+Shift+P) shows all of them plus the masters list, and the
+tooltip when hovering a plugin lists `#Records` and its masters.
+
+#Deleted and ESLable need a walk over every record header, so Explorer fills
+them in after the other columns. Results are cached per Explorer process by
+file name, size and modification time, so refreshing a folder does not rescan.
+
+Windows only accepts property handlers and their schema
+(`PluginProperties.propdesc`) registered machine-wide, so this task asks for
+administrator rights (it runs `regsvr32 /n /i:columns` elevated; `/u` undoes
+it, as the uninstaller does). Everything else stays per user. Restart Explorer
+after installing so it loads the new schema.
+
+## Licence
+
+GPL-3.0. See [LICENSE](LICENSE).
+
 ## Build
 
 Requires Visual Studio with the MSVC 14.44 (v143) toolset; CMake and Ninja come
@@ -77,6 +114,7 @@ Outputs, in `build\`:
 - `PluginProperties-<version>-setup.exe`: the installer (script in `installer\PluginProperties.iss`)
 - `plugininfo.exe <plugin>...`: console dump of the same fields, plus a self-check that walked records + GRUPs equal the HEDR count
 - `menutest.exe <plugin> [--invoke]`: builds Explorer's context menu for a file and checks the entry is there (and opens)
+- `proptest.exe <dll> <plugin>...`: loads the property handler from the DLL without registering it, feeds it a file stream as Explorer does, and prints every column value
 
 ## Testing without installing
 
@@ -104,4 +142,6 @@ theme, and `PLUGINPROPS_DPI_UNAWARE=1` renders the 100% layout.
 - `src/context_menu.*`: `IShellExtInit` + `IContextMenu` + class factory
 - `src/registration.*`: registry layout for `regsvr32` (the installer writes the same keys from `installer/PluginProperties.iss`)
 - `src/dllmain.cpp`: COM exports, `DllRegisterServer`/`DllInstall`, rundll32 entry points
+- `src/property_handler.*`: the Explorer property handler (columns / details pane / tooltip), reading from the stream Explorer passes
+- `installer/PluginProperties.propdesc`: the property schema (names, labels, types)
 - `installer/PluginProperties.iss`: the Inno Setup installer

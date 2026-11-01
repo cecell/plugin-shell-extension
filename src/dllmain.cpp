@@ -7,6 +7,7 @@
 
 #include "context_menu.h"
 #include "debug_log.h"
+#include "property_handler.h"
 #include "property_window.h"
 #include "registration.h"
 
@@ -66,9 +67,11 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
 STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
     if (!ppv) return E_POINTER;
     *ppv = nullptr;
-    pp::DebugLog(L"DllGetClassObject match=%d", clsid == pp::kClsidContextMenu);
-    if (clsid != pp::kClsidContextMenu) return CLASS_E_CLASSNOTAVAILABLE;
-    return pp::CreateClassFactory(riid, ppv);
+    pp::DebugLog(L"DllGetClassObject menu=%d props=%d", clsid == pp::kClsidContextMenu,
+                 clsid == pp::kClsidPropertyHandler);
+    if (clsid == pp::kClsidContextMenu) return pp::CreateClassFactory(riid, ppv);
+    if (clsid == pp::kClsidPropertyHandler) return pp::CreatePropertyHandlerFactory(riid, ppv);
+    return CLASS_E_CLASSNOTAVAILABLE;
 }
 
 STDAPI DllCanUnloadNow() { return pp::g_dllRefs == 0 ? S_OK : S_FALSE; }
@@ -78,7 +81,15 @@ STDAPI DllRegisterServer() { return pp::RegisterHandler(HKEY_CURRENT_USER, Modul
 STDAPI DllUnregisterServer() { return pp::UnregisterHandler(HKEY_CURRENT_USER); }
 
 // regsvr32 /i:machine PluginProperties.dll (elevated) registers for all users.
+// regsvr32 /n /i:columns PluginProperties.dll (elevated) registers the
+// property handler and schema (Explorer columns, details pane, tooltip); add
+// /u to remove them. The .propdesc must sit next to the DLL.
 STDAPI DllInstall(BOOL install, PCWSTR cmdLine) {
+    if (cmdLine && _wcsicmp(cmdLine, L"columns") == 0) {
+        std::wstring dll = ModulePath();
+        std::wstring schema = dll.substr(0, dll.find_last_of(L'\\') + 1) + pp::kSchemaFileName;
+        return install ? pp::RegisterPropertyHandler(dll, schema) : pp::UnregisterPropertyHandler(schema);
+    }
     HKEY root = (cmdLine && _wcsicmp(cmdLine, L"machine") == 0) ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
     return install ? pp::RegisterHandler(root, ModulePath()) : pp::UnregisterHandler(root);
 }

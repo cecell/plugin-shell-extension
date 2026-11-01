@@ -35,7 +35,7 @@ int wmain(int argc, wchar_t** argv) {
 
         pp::GroupScan s = pp::ScanGroups(argv[i], h);
         if (!s.error.empty()) wprintf(L"scan error: %s\n", s.error.c_str());
-        wprintf(L"ESLable: %s\n", h.light ? L"Already flagged" : !s.eslCapable ? L"False" : s.ok ? L"True" : L"Unknown");
+        wprintf(L"ESLable: %s\n", pp::EslableText(h, s).c_str());
         wprintf(L"Record types:");
         for (size_t g = 0; g < s.groups.size(); ++g)
             wprintf(L"%s %s (%llu)", g ? L"," : L"", s.groups[g].label.c_str(), s.groups[g].records);
