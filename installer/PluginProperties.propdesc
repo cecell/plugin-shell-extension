@@ -63,5 +63,12 @@
       <displayInfo displayType="String" defaultColumnWidth="40"/>
     </propertyDescription>
 
+    <propertyDescription name="Cecell.PluginProperties.ESLNote" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="10">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="64"/>
+      <labelInfo label="ESLable note"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="24"/>
+    </propertyDescription>
+
   </propertyDescriptionList>
 </schema>

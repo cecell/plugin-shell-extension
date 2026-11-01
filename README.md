@@ -77,7 +77,7 @@ properties:
 | Is Light | True / False (centred) |
 | #Masters | number of masters |
 | #Deleted | deleted references + navmeshes (the Deleted forms total), a hint that the plugin needs cleaning; blank when there are none |
-| ESLable | Already (already light); True (new records fit the light range for its header: < 1.71 up to 2,048 in 800-FFF, 1.71+ up to 4,096 in 000-FFF); Compact (few enough new records but some IDs outside that range); Save in CK (< 1.71 with 2,049-4,096 new records all in 000-FFF, fits once resaved with a 1.71 header); False otherwise |
+| ESLable | Already (already light); True (fits as is: header < 1.71 with up to 2,048 new records in 800-FFF, or 1.71+ with up to 4,096 in 000-FFF; overrides only counts as True); Compact (few enough new records, IDs outside the range); Save in CK (header < 1.71, all new IDs in 000-FFF but not the old rules, fits once resaved with a 1.71 header); Save + Compact (header < 1.71, 2,049-4,096 new records, some IDs outside 000-FFF); False (more than 4,096 new records); Corrupted (the file could not be read to the end). When the result needs IDs below 800, the file tooltip, the details pane and the window add "Requires v1.6.1130 or later" |
 
 Turn them on in Details view: right-click a column header > **More…**. The
 details pane (Alt+Shift+P) shows all of them plus the masters list, and the

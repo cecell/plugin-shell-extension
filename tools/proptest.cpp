@@ -27,6 +27,7 @@ const wchar_t* PidName(DWORD pid) {
         case pp::kPidDeletedCount: return L"#Deleted";
         case pp::kPidEslable: return L"ESLable";
         case pp::kPidMasters: return L"Masters";
+        case pp::kPidEslNote: return L"ESL note";
     }
     return L"?";
 }
