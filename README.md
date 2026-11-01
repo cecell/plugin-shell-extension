@@ -28,6 +28,13 @@ appears immediately and fills in the GRUP line when the scan finishes
 Right-click a row to copy its value or the whole table. The Property column
 can be resized, and so can the window.
 
+The window is per-monitor DPI aware: it is laid out for the scale of the
+monitor it opens on and re-laid out when dragged to a monitor with a
+different scale. It follows the Windows app mode (Settings > Personalization >
+Colors). Dark mode gets a dark title bar, tab, list, header, scrollbar and
+buttons, and the window switches live when the setting changes. With high
+contrast on, it uses the high-contrast system colours instead.
+
 ## Install
 
 Run `build\PluginProperties-<version>-setup.exe`, a standard Inno Setup
@@ -86,6 +93,9 @@ Set `PLUGINPROPS_LOG=C:\some\file.log` in a process's environment, or the
 registry value `HKCU\Software\PluginProperties\LogFile`, to trace the
 handler's calls. Create an empty `load_trace.log` next to the DLL to log every
 process that loads it.
+
+For screenshots of other looks: `PLUGINPROPS_THEME=dark` or `light` forces the
+theme, and `PLUGINPROPS_DPI_UNAWARE=1` renders the 100% layout.
 
 ## Layout
 
