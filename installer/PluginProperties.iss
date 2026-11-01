@@ -65,7 +65,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 FinishedLabelNoIcons=Setup has finished installing [name] on your computer.%n%nRight-click a .esp, .esm or .esl file and choose "Plugin properties". On Windows 11 it is under "Show more options" (or Shift+right-click).
 
 [Tasks]
-Name: "columns"; Description: "Add columns to Explorer, the details pane and files tooltip (requires admin rights)"
+Name: "columns"; Description: "  Add columns to Explorer, the details pane and files tooltip (requires admin rights)"
 
 [Files]
 Source: "{#BinDir}\PluginProperties.dll"; DestDir: "{app}"; Flags: ignoreversion
