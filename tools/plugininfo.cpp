@@ -35,7 +35,8 @@ int wmain(int argc, wchar_t** argv) {
 
         pp::GroupScan s = pp::ScanGroups(argv[i], h);
         if (!s.error.empty()) wprintf(L"scan error: %s\n", s.error.c_str());
-        wprintf(L"ESLable: %s\n", pp::EslableText(h, s).c_str());
+        wprintf(L"ESLable: %s\n", pp::EslStatusText(pp::ClassifyEsl(h, s), true));
+        wprintf(L"New records: %llu (in 800-FFF: %d, in 000-FFF: %d)\n", s.newRecords, s.newIdsIn800, s.newIdsIn000);
         wprintf(L"Record types:");
         for (size_t g = 0; g < s.groups.size(); ++g)
             wprintf(L"%s %s (%llu)", g ? L"," : L"", s.groups[g].label.c_str(), s.groups[g].records);

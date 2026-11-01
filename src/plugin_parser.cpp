@@ -224,13 +224,14 @@ struct RawGroup {
 
 enum WalkResult { kWalkOk = 0, kWalkCorrupt, kWalkTooMany, kWalkFault };
 
-// ESL capability (doc section 10): a record whose FormID's top byte is at
-// least the master count is new to this plugin, and its object ID must lie in
-// [eslLowest, 0xFFF]. Overrides and FormID 0 are ignored.
+// ESL facts (doc section 10): a record whose FormID's top byte is at least
+// the master count is new to this plugin. Overrides and FormID 0 are ignored.
+// Both light ranges are tracked; ClassifyEsl picks by HEDR version.
 struct EslCheck {
     uint32_t numMasters;
-    uint32_t lowest;
-    bool capable;
+    uint64_t newRecords;
+    bool in800;  // every new object ID in 0x800..0xFFF (HEDR < 1.71 range)
+    bool in000;  // every new object ID in 0x000..0xFFF (HEDR 1.71+ range)
 };
 
 // Deleted-record counts (doc section 11): the types xEdit's "Undelete and
@@ -329,9 +330,11 @@ WalkResult WalkCore(Reader& reader, uint64_t fileSize, uint64_t start, WalkOutpu
             }
             ++records;
             uint32_t formId = U32(r + 12);
-            if (out->esl.capable && formId != 0 && (formId >> 24) >= out->esl.numMasters) {
+            if (formId != 0 && (formId >> 24) >= out->esl.numMasters) {
                 uint32_t objectId = formId & 0x00FFFFFF;
-                if (objectId < out->esl.lowest || objectId > 0xFFF) out->esl.capable = false;
+                ++out->esl.newRecords;
+                if (objectId > 0xFFF) out->esl.in000 = out->esl.in800 = false;
+                else if (objectId < 0x800) out->esl.in800 = false;
             }
             if (U32(r + 8) & kRecordFlagDeleted) {
                 for (size_t t = 0; t < kDeletedTypeCount; ++t) {
@@ -373,17 +376,17 @@ WalkResult WalkMapped(const uint8_t* base, uint64_t fileSize, uint64_t start, Wa
 }
 
 void InitWalk(const PluginHeader& header, std::vector<RawGroup>& raw, WalkOutput* out) {
-    // HEDR 1.71+ (newer CK) may use object IDs from 0x000; older from 0x800.
-    bool newRange = header.hasHedr && std::isfinite(header.version) && std::lround(header.version * 100.0f) >= 171;
     *out = WalkOutput{};
     out->groups = raw.data();
     out->capacity = raw.size();
-    out->esl = EslCheck{static_cast<uint32_t>(header.masters.size()), newRange ? 0x000u : 0x800u, true};
+    out->esl = EslCheck{static_cast<uint32_t>(header.masters.size()), 0, true, true};
 }
 
 void FinishScan(const WalkOutput& out, WalkResult result, GroupScan* scan) {
     scan->totalGroups = out.totalGroups;
-    scan->eslCapable = out.esl.capable;
+    scan->newRecords = out.esl.newRecords;
+    scan->newIdsIn800 = out.esl.in800;
+    scan->newIdsIn000 = out.esl.in000;
     for (size_t t = 0; t < kDeletedTypeCount; ++t) {  // kDeletedTypes is already alphabetical
         if (!out.deleted[t]) continue;
         GroupCount dc;
@@ -463,10 +466,34 @@ std::wstring VersionText(float version) {
     return buf;
 }
 
-std::wstring EslableText(const PluginHeader& header, const GroupScan& scan) {
-    if (header.light) return L"Already flagged";
-    if (!scan.eslCapable) return L"False";
-    return scan.ok ? L"True" : L"Unknown";
+EslStatus ClassifyEsl(const PluginHeader& header, const GroupScan& scan) {
+    if (header.light) return EslStatus::Already;
+    if (!scan.ok) return EslStatus::Unknown;
+    // HEDR 1.71+ (CK for 1.6.1130+) may use object IDs from 0x000 (4,096);
+    // older headers only from 0x800 (2,048).
+    bool v171 = header.hasHedr && std::isfinite(header.version) && std::lround(header.version * 100.0f) >= 171;
+    uint64_t n = scan.newRecords;
+    if (v171) {
+        if (n > 4096) return EslStatus::False;
+        return scan.newIdsIn000 ? EslStatus::True : EslStatus::Compact;
+    }
+    if (n <= 2048) return scan.newIdsIn800 ? EslStatus::True : EslStatus::Compact;
+    // Too many for the old range, but resaving in the newer CK (header 1.71)
+    // opens 0x000..0x7FF, which these IDs already fit.
+    if (n <= 4096 && scan.newIdsIn000) return EslStatus::SaveInCk;
+    return EslStatus::False;
+}
+
+const wchar_t* EslStatusText(EslStatus status, bool shortForm) {
+    switch (status) {
+        case EslStatus::Already: return shortForm ? L"Already" : L"Already flagged";
+        case EslStatus::True: return L"True";
+        case EslStatus::Compact: return L"Compact";
+        case EslStatus::SaveInCk: return L"Save in CK";
+        case EslStatus::False: return L"False";
+        case EslStatus::Unknown: break;
+    }
+    return L"Unknown";
 }
 
 PluginHeader ReadPluginHeader(const std::wstring& path) {

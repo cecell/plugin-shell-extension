@@ -46,10 +46,11 @@ struct GroupScan {
     std::vector<GroupCount> groups;  // merged by label, sorted alphabetically
     uint64_t totalRecords = 0;
     uint64_t totalGroups = 0;        // every GRUP at every depth
-    // ESL-capable (Vortex's "Could be light"): every new record's object ID
-    // fits the light range for the HEDR version. Settled when ok, or when false
-    // (a violation found before an error is still a violation).
-    bool eslCapable = true;
+    // Records new to this plugin (FormID top byte >= master count) and whether
+    // all their object IDs fit each light range. Feed ClassifyEsl.
+    uint64_t newRecords = 0;
+    bool newIdsIn800 = true;  // 0x800..0xFFF
+    bool newIdsIn000 = true;  // 0x000..0xFFF
     // Deleted placed objects and navmeshes (REFR, ACHR, P***, NAVM with the
     // Deleted flag): nonzero types only, alphabetical.
     std::vector<GroupCount> deleted;
@@ -65,9 +66,20 @@ PluginHeader ReadPluginHeader(IStream* stream, const std::wstring& fileName);
 GroupScan ScanGroups(const std::wstring& path, const PluginHeader& header);
 GroupScan ScanGroups(IStream* stream, const PluginHeader& header);
 
-// "Already flagged" for a plugin that loads as light, else True / False, or
-// Unknown when the scan failed before finding a violation.
-std::wstring EslableText(const PluginHeader& header, const GroupScan& scan);
+// What it takes to make the plugin light (ESLable):
+//   Already  - already loads as light (ESL flag or .esl)
+//   True     - can be flagged as is: new records and their object IDs fit the
+//              range for its header (< 1.71: 2,048 in 0x800-0xFFF; 1.71+:
+//              4,096 in 0x000-0xFFF)
+//   Compact  - few enough new records, but some IDs are outside that range
+//   SaveInCk - header < 1.71 with 2,049-4,096 new records whose IDs all fit
+//              0x000-0xFFF: resaving in the newer CK (header 1.71) makes it fit
+//   False    - anything else
+//   Unknown  - the record walk failed
+enum class EslStatus { Already, True, Compact, SaveInCk, False, Unknown };
+EslStatus ClassifyEsl(const PluginHeader& header, const GroupScan& scan);
+// shortForm: "Already" (Explorer column) instead of "Already flagged".
+const wchar_t* EslStatusText(EslStatus status, bool shortForm);
 
 // "ESM, ESL, Localized" in that order; empty when no bit is set.
 std::wstring FlagsText(uint32_t flags);
