@@ -1,0 +1,95 @@
+# Builds the DLL and the installer on a clean GitHub runner, publishes their
+# SHA-256 hashes, and attaches signed build provenance, so a downloaded
+# installer can be traced back to this commit and this workflow run.
+#
+#   push / pull request / manual run -> build + "PluginShellExtension" artifact
+#   push a tag like v0.90            -> also a GitHub Release with the files
+#
+# Verify a download:  gh attestation verify <file> --repo cecell/plugin-shell-extension
+# (provenance needs a public repository; the SHA-256 list is always produced.)
+
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write       # create the release on tags
+  id-token: write       # sign the build provenance
+  attestations: write
+
+jobs:
+  build:
+    runs-on: windows-2025
+    env:
+      # Same toolset as local builds (see build.cmd).
+      MSVC_TOOLSET: "14.44"
+      # Inno Setup, pinned to the official release and its SHA-256.
+      INNO_URL: https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe
+      INNO_SHA256: 8a5a6711c3766a6e5fb74f280ba0e3551e719ce94538d901fdbd1f8f9920b3f0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Inno Setup (verified)
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'innosetup.exe'
+          Invoke-WebRequest $env:INNO_URL -OutFile $installer
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $env:INNO_SHA256) { throw "Inno Setup installer hash mismatch: $hash" }
+          Start-Process $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/ALLUSERS' -Wait
+          if (-not (Test-Path "$env:ProgramFiles\Inno Setup 7\ISCC.exe")) { throw "ISCC.exe not found after install" }
+
+      - name: Build
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set VSPATH=%%i
+          call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat" -vcvars_ver=%MSVC_TOOLSET% || exit /b 1
+          cl 2>&1 | findstr /C:"Version"
+          cmake --version
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release || exit /b 1
+          cmake --build build || exit /b 1
+
+      - name: Hash
+        id: hash
+        shell: pwsh
+        run: |
+          $dist = New-Item -ItemType Directory -Force dist
+          Copy-Item build\bin\PluginShellExtension.dll, build\PluginShellExtension-*-setup.exe $dist
+          $lines = Get-ChildItem $dist -File | Sort-Object Name | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+          }
+          $lines | Set-Content -Encoding ascii dist\SHA256SUMS.txt
+          "## SHA-256" >> $env:GITHUB_STEP_SUMMARY
+          '```' >> $env:GITHUB_STEP_SUMMARY
+          $lines >> $env:GITHUB_STEP_SUMMARY
+          '```' >> $env:GITHUB_STEP_SUMMARY
+          "Commit: $env:GITHUB_SHA" >> $env:GITHUB_STEP_SUMMARY
+          $lines
+
+      - name: Attest build provenance
+        if: ${{ github.event_name != 'pull_request' && !github.event.repository.private }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/PluginShellExtension.dll
+            dist/PluginShellExtension-*-setup.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PluginShellExtension
+          path: dist/
+          if-no-files-found: error
+
+      - name: Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist -File).FullName `
+            --title "Plugin Shell Extension $($env:GITHUB_REF_NAME.TrimStart('v'))" --generate-notes

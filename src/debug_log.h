@@ -1,5 +1,5 @@
 // Opt-in trace for debugging inside Explorer: when the environment variable
-// PLUGINPROPS_LOG, or the registry value HKCU\Software\PluginProperties\LogFile
+// PSE_LOG, or the registry value HKCU\Software\PluginShellExtension\LogFile
 // (works without restarting Explorer), names a file, lines are appended to it.
 // Off otherwise.
 #pragma once
@@ -8,13 +8,13 @@
 #include <cstdarg>
 #include <cstdio>
 
-namespace pp {
+namespace pse {
 
 inline void DebugLog(const wchar_t* fmt, ...) {
     wchar_t path[MAX_PATH] = {};
-    if (!GetEnvironmentVariableW(L"PLUGINPROPS_LOG", path, MAX_PATH)) {
+    if (!GetEnvironmentVariableW(L"PSE_LOG", path, MAX_PATH)) {
         DWORD size = sizeof(path);
-        if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\PluginProperties", L"LogFile", RRF_RT_REG_SZ, nullptr, path,
+        if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\PluginShellExtension", L"LogFile", RRF_RT_REG_SZ, nullptr, path,
                          &size) != ERROR_SUCCESS || !path[0])
             return;
     }
@@ -41,4 +41,4 @@ inline void DebugLog(const wchar_t* fmt, ...) {
     CloseHandle(f);
 }
 
-}  // namespace pp
+}  // namespace pse

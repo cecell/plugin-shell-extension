@@ -1,12 +1,12 @@
 // Explorer property handler for .esp/.esm/.esl: supplies the plugin fields as
 // shell properties, so they can be Details-view columns, details pane entries
 // and tooltip lines. The property names and labels live in
-// installer/PluginProperties.propdesc.
+// installer/PluginShellExtension.propdesc.
 #pragma once
 
 #include <windows.h>
 
-namespace pp {
+namespace pse {
 
 // Format ID shared by all plugin properties; PIDs below must match the
 // .propdesc schema.
@@ -27,4 +27,4 @@ enum PluginPid : DWORD {
 
 HRESULT CreatePropertyHandlerFactory(REFIID riid, void** ppv);
 
-}  // namespace pp
+}  // namespace pse

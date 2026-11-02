@@ -1,4 +1,4 @@
-LIBRARY PluginProperties
+LIBRARY PluginShellExtension
 EXPORTS
     DllGetClassObject   PRIVATE
     DllCanUnloadNow     PRIVATE

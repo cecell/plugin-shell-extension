@@ -1,4 +1,4 @@
-# Plugin Properties
+# Plugin Shell Extension
 
 A Windows Explorer shell extension that adds **Plugin properties** to the
 right-click menu of Skyrim SE plugins (`.esp`, `.esm`, `.esl`). It opens a
@@ -37,16 +37,20 @@ contrast on, it uses the high-contrast system colours instead.
 
 ## Install
 
-Run `build\PluginProperties-<version>-setup.exe`, a standard Inno Setup
-wizard. It installs for the current user (no admin prompt) into
-`%LOCALAPPDATA%\Programs\Plugin Properties`, registers the handler under
-`HKCU\Software\Classes`, and adds **Plugin Properties** to **Settings > Apps**
+Run `PluginShellExtension-<version>-setup.exe` (from the GitHub release, or
+`build\` after a local build), a standard Inno Setup wizard. It installs for the current user (no admin prompt) into
+`%LOCALAPPDATA%\Programs\Plugin Shell Extension`, registers the handler under
+`HKCU\Software\Classes`, and adds **Plugin Shell Extension** to **Settings > Apps**
 for uninstalling. Installing over an older version works while Explorer has
 the DLL loaded: the old file is moved aside rather than Explorer being closed.
 Restart Explorer (or sign out) to pick up the new version.
 
+Pre-release builds before 0.90 used a different name. If one is installed,
+setup asks you to uninstall it first (Settings > Apps), because both use the
+same registry keys.
+
 Silent install / uninstall use the usual Inno switches:
-`PluginProperties-<version>-setup.exe /VERYSILENT`, and
+`PluginShellExtension-<version>-setup.exe /VERYSILENT`, and
 `unins000.exe /VERYSILENT` in the install folder.
 
 Run setup from Explorer or a normal terminal. A process started from inside a
@@ -88,7 +92,7 @@ them in after the other columns. Results are cached per Explorer process by
 file name, size and modification time, so refreshing a folder does not rescan.
 
 Windows only accepts property handlers and their schema
-(`PluginProperties.propdesc`) registered machine-wide, so this task asks for
+(`PluginShellExtension.propdesc`) registered machine-wide, so this task asks for
 administrator rights (it runs `regsvr32 /n /i:columns` elevated; `/u` undoes
 it, as the uninstaller does). Everything else stays per user. Restart Explorer
 after installing so it loads the new schema.
@@ -96,6 +100,27 @@ after installing so it loads the new schema.
 ## Licence
 
 GPL-3.0. See [LICENSE](LICENSE).
+
+## Official builds and verification
+
+Release files are built by GitHub Actions (`.github/workflows/build.yml`) on a
+clean Windows runner, not on a developer PC:
+
+- the compiler is pinned to MSVC 14.44, and its version is printed in the log
+- Inno Setup 7.1.1 is downloaded from its official release and checked
+  against a pinned SHA-256 before use
+- every run publishes `SHA256SUMS.txt` for the DLL and the installer, both
+  in the run summary and in the downloadable artifact
+- pushing a tag such as `v0.90` publishes a GitHub Release with the same files
+- when the repository is public, each file also gets signed build provenance
+  that ties its hash to the commit and the workflow run:
+
+```
+gh attestation verify PluginShellExtension-0.90-setup.exe --repo cecell/plugin-shell-extension
+```
+
+A local build does not reproduce the official hashes byte for byte (the linker
+stamps build times), so compare downloads against the published list.
 
 ## Build
 
@@ -110,8 +135,8 @@ build.cmd
 
 Outputs, in `build\`:
 
-- `bin\PluginProperties.dll`: the shell extension (static CRT, no redistributable needed)
-- `PluginProperties-<version>-setup.exe`: the installer (script in `installer\PluginProperties.iss`)
+- `bin\PluginShellExtension.dll`: the shell extension (static CRT, no redistributable needed)
+- `PluginShellExtension-<version>-setup.exe`: the installer (script in `installer\PluginShellExtension.iss`)
 - `plugininfo.exe <plugin>...`: console dump of the same fields, plus a self-check that walked records + GRUPs equal the HEDR count
 - `menutest.exe <plugin> [--invoke]`: builds Explorer's context menu for a file and checks the entry is there (and opens)
 - `proptest.exe <dll> <plugin>...`: loads the property handler from the DLL without registering it, feeds it a file stream as Explorer does, and prints every column value
@@ -119,29 +144,29 @@ Outputs, in `build\`:
 ## Testing without installing
 
 ```
-rundll32 build\bin\PluginProperties.dll,ShowProperties C:\path\to\Plugin.esp
-rundll32 build\bin\PluginProperties.dll,Snapshot "C:\path\to\Plugin.esp" "C:\out.png"
+rundll32 build\bin\PluginShellExtension.dll,ShowProperties C:\path\to\Plugin.esp
+rundll32 build\bin\PluginShellExtension.dll,Snapshot "C:\path\to\Plugin.esp" "C:\out.png"
 ```
 
 `Snapshot` renders the window to a PNG once the GRUP scan finishes (`snap.sh`
-wraps it). `regsvr32 build\bin\PluginProperties.dll` registers the build output
+wraps it). `regsvr32 build\bin\PluginShellExtension.dll` registers the build output
 for the current user (`/u` to undo).
 
-Set `PLUGINPROPS_LOG=C:\some\file.log` in a process's environment, or the
-registry value `HKCU\Software\PluginProperties\LogFile`, to trace the
+Set `PSE_LOG=C:\some\file.log` in a process's environment, or the
+registry value `HKCU\Software\PluginShellExtension\LogFile`, to trace the
 handler's calls. Create an empty `load_trace.log` next to the DLL to log every
 process that loads it.
 
-For screenshots of other looks: `PLUGINPROPS_THEME=dark` or `light` forces the
-theme, and `PLUGINPROPS_DPI_UNAWARE=1` renders the 100% layout.
+For screenshots of other looks: `PSE_THEME=dark` or `light` forces the
+theme, and `PSE_DPI_UNAWARE=1` renders the 100% layout.
 
 ## Layout
 
 - `src/plugin_parser.*`: TES4 header + GRUP walk (bounds-checked; the mapped walk runs under SEH)
 - `src/property_window.*`: the dialog and its custom Property/Value list, needed because a ListView cannot give rows different heights
 - `src/context_menu.*`: `IShellExtInit` + `IContextMenu` + class factory
-- `src/registration.*`: registry layout for `regsvr32` (the installer writes the same keys from `installer/PluginProperties.iss`)
+- `src/registration.*`: registry layout for `regsvr32` (the installer writes the same keys from `installer/PluginShellExtension.iss`)
 - `src/dllmain.cpp`: COM exports, `DllRegisterServer`/`DllInstall`, rundll32 entry points
 - `src/property_handler.*`: the Explorer property handler (columns / details pane / tooltip), reading from the stream Explorer passes
-- `installer/PluginProperties.propdesc`: the property schema (names, labels, types)
-- `installer/PluginProperties.iss`: the Inno Setup installer
+- `installer/PluginShellExtension.propdesc`: the property schema (names, labels, types)
+- `installer/PluginShellExtension.iss`: the Inno Setup installer

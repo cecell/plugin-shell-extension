@@ -14,7 +14,7 @@
 #include "context_menu.h"
 #include "plugin_parser.h"
 
-namespace pp {
+namespace pse {
 namespace {
 
 constexpr DWORD kPids[] = {kPidHeaderVersion, kPidRecordCount, kPidFlags, kPidLight,
@@ -231,4 +231,4 @@ HRESULT CreatePropertyHandlerFactory(REFIID riid, void** ppv) {
     return hr;
 }
 
-}  // namespace pp
+}  // namespace pse

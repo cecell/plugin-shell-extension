@@ -74,7 +74,7 @@ int wmain(int argc, wchar_t** argv) {
                 HWND wnd = nullptr;
                 for (int i = 0; i < 100 && !wnd; ++i) {
                     Sleep(100);
-                    wnd = FindWindowW(L"PluginPropertiesDialog", nullptr);
+                    wnd = FindWindowW(L"PluginShellExtensionDialog", nullptr);
                 }
                 if (wnd) {
                     wchar_t title[256] = {};

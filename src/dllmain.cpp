@@ -67,43 +67,43 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
 STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
     if (!ppv) return E_POINTER;
     *ppv = nullptr;
-    pp::DebugLog(L"DllGetClassObject menu=%d props=%d", clsid == pp::kClsidContextMenu,
-                 clsid == pp::kClsidPropertyHandler);
-    if (clsid == pp::kClsidContextMenu) return pp::CreateClassFactory(riid, ppv);
-    if (clsid == pp::kClsidPropertyHandler) return pp::CreatePropertyHandlerFactory(riid, ppv);
+    pse::DebugLog(L"DllGetClassObject menu=%d props=%d", clsid == pse::kClsidContextMenu,
+                 clsid == pse::kClsidPropertyHandler);
+    if (clsid == pse::kClsidContextMenu) return pse::CreateClassFactory(riid, ppv);
+    if (clsid == pse::kClsidPropertyHandler) return pse::CreatePropertyHandlerFactory(riid, ppv);
     return CLASS_E_CLASSNOTAVAILABLE;
 }
 
-STDAPI DllCanUnloadNow() { return pp::g_dllRefs == 0 ? S_OK : S_FALSE; }
+STDAPI DllCanUnloadNow() { return pse::g_dllRefs == 0 ? S_OK : S_FALSE; }
 
-// regsvr32 PluginProperties.dll registers for the current user only.
-STDAPI DllRegisterServer() { return pp::RegisterHandler(HKEY_CURRENT_USER, ModulePath()); }
-STDAPI DllUnregisterServer() { return pp::UnregisterHandler(HKEY_CURRENT_USER); }
+// regsvr32 PluginShellExtension.dll registers for the current user only.
+STDAPI DllRegisterServer() { return pse::RegisterHandler(HKEY_CURRENT_USER, ModulePath()); }
+STDAPI DllUnregisterServer() { return pse::UnregisterHandler(HKEY_CURRENT_USER); }
 
-// regsvr32 /i:machine PluginProperties.dll (elevated) registers for all users.
-// regsvr32 /n /i:columns PluginProperties.dll (elevated) registers the
+// regsvr32 /i:machine PluginShellExtension.dll (elevated) registers for all users.
+// regsvr32 /n /i:columns PluginShellExtension.dll (elevated) registers the
 // property handler and schema (Explorer columns, details pane, tooltip); add
 // /u to remove them. The .propdesc must sit next to the DLL.
 STDAPI DllInstall(BOOL install, PCWSTR cmdLine) {
     if (cmdLine && _wcsicmp(cmdLine, L"columns") == 0) {
         std::wstring dll = ModulePath();
-        std::wstring schema = dll.substr(0, dll.find_last_of(L'\\') + 1) + pp::kSchemaFileName;
-        return install ? pp::RegisterPropertyHandler(dll, schema) : pp::UnregisterPropertyHandler(schema);
+        std::wstring schema = dll.substr(0, dll.find_last_of(L'\\') + 1) + pse::kSchemaFileName;
+        return install ? pse::RegisterPropertyHandler(dll, schema) : pse::UnregisterPropertyHandler(schema);
     }
     HKEY root = (cmdLine && _wcsicmp(cmdLine, L"machine") == 0) ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
-    return install ? pp::RegisterHandler(root, ModulePath()) : pp::UnregisterHandler(root);
+    return install ? pse::RegisterHandler(root, ModulePath()) : pse::UnregisterHandler(root);
 }
 
-// rundll32 PluginProperties.dll,ShowProperties <plugin path>
+// rundll32 PluginShellExtension.dll,ShowProperties <plugin path>
 extern "C" void CALLBACK ShowPropertiesW(HWND, HINSTANCE, LPWSTR cmdLine, int) {
-    pp::RunPropertyWindow(Unquote(cmdLine ? cmdLine : L""), std::wstring(), 0);
+    pse::RunPropertyWindow(Unquote(cmdLine ? cmdLine : L""), std::wstring(), 0);
 }
 
-// rundll32 PluginProperties.dll,Snapshot "<plugin path>" "<out.png>"
+// rundll32 PluginShellExtension.dll,Snapshot "<plugin path>" "<out.png>"
 // Renders the window to a PNG once the GRUP scan finishes, then closes it.
 extern "C" void CALLBACK SnapshotW(HWND, HINSTANCE, LPWSTR cmdLine, int) {
     int argc = 0;
     LPWSTR* argv = CommandLineToArgvW(cmdLine && *cmdLine ? cmdLine : L"x", &argc);
-    if (argv && argc >= 2) pp::RunPropertyWindow(argv[0], argv[1], 0);
+    if (argv && argc >= 2) pse::RunPropertyWindow(argv[0], argv[1], 0);
     if (argv) LocalFree(argv);
 }

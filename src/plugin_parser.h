@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace pp {
+namespace pse {
 
 constexpr uint32_t kFlagEsm = 0x00000001;
 constexpr uint32_t kFlagLocalized = 0x00000080;
@@ -96,4 +96,4 @@ std::wstring VersionText(float version);
 // otherwise Windows-1252.
 std::wstring DecodeZString(const uint8_t* data, size_t size);
 
-}  // namespace pp
+}  // namespace pse

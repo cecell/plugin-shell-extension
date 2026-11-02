@@ -15,7 +15,7 @@ int wmain(int argc, wchar_t** argv) {
     }
     int failures = 0;
     for (int i = 1; i < argc; ++i) {
-        pp::PluginHeader h = pp::ReadPluginHeader(argv[i]);
+        pse::PluginHeader h = pse::ReadPluginHeader(argv[i]);
         wprintf(L"== %s\n", argv[i]);
         if (!h.ok) {
             wprintf(L"error: %s\n", h.error.c_str());
@@ -23,9 +23,9 @@ int wmain(int argc, wchar_t** argv) {
             continue;
         }
         if (!h.error.empty()) wprintf(L"warning: %s\n", h.error.c_str());
-        wprintf(L"Header version: %s\n", h.hasHedr ? pp::VersionText(h.version).c_str() : L"");
+        wprintf(L"Header version: %s\n", h.hasHedr ? pse::VersionText(h.version).c_str() : L"");
         wprintf(L"Records: %d\n", h.numRecords);
-        wprintf(L"Flags: %s (0x%X)\n", pp::FlagsText(h.flags).c_str(), h.flags);
+        wprintf(L"Flags: %s (0x%X)\n", pse::FlagsText(h.flags).c_str(), h.flags);
         wprintf(L"Light: %s\n", h.light ? L"True" : L"False");
         wprintf(L"Author - CNAM: %s\n", h.author.c_str());
         wprintf(L"Description - SNAM: %s\n", h.description.c_str());
@@ -33,9 +33,9 @@ int wmain(int argc, wchar_t** argv) {
         for (size_t m = 0; m < h.masters.size(); ++m) wprintf(L" [%zu] %s", m, h.masters[m].c_str());
         wprintf(L"\n");
 
-        pp::GroupScan s = pp::ScanGroups(argv[i], h);
+        pse::GroupScan s = pse::ScanGroups(argv[i], h);
         if (!s.error.empty()) wprintf(L"scan error: %s\n", s.error.c_str());
-        wprintf(L"ESLable: %s\n", pp::EslStatusText(pp::ClassifyEsl(h, s), true));
+        wprintf(L"ESLable: %s\n", pse::EslStatusText(pse::ClassifyEsl(h, s), true));
         wprintf(L"New records: %llu (in 800-FFF: %d, in 000-FFF: %d)\n", s.newRecords, s.newIdsIn800, s.newIdsIn000);
         wprintf(L"Record types:");
         for (size_t g = 0; g < s.groups.size(); ++g)

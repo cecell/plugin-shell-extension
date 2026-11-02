@@ -1,7 +1,7 @@
 // Drives the property handler the way Explorer does, without registering it:
 // loads the DLL, creates the handler class, initializes it with a file stream
 // and prints every property it reports.
-//   proptest.exe <PluginProperties.dll> <plugin> [<plugin> ...]
+//   proptest.exe <PluginShellExtension.dll> <plugin> [<plugin> ...]
 #include <windows.h>
 #include <io.h>
 #include <fcntl.h>
@@ -19,15 +19,15 @@ namespace {
 
 const wchar_t* PidName(DWORD pid) {
     switch (pid) {
-        case pp::kPidHeaderVersion: return L"Header Ver";
-        case pp::kPidRecordCount: return L"#Records";
-        case pp::kPidFlags: return L"Flags";
-        case pp::kPidLight: return L"Light";
-        case pp::kPidMasterCount: return L"#Masters";
-        case pp::kPidDeletedCount: return L"#Deleted";
-        case pp::kPidEslable: return L"ESLable";
-        case pp::kPidMasters: return L"Masters";
-        case pp::kPidEslNote: return L"ESL note";
+        case pse::kPidHeaderVersion: return L"Header Ver";
+        case pse::kPidRecordCount: return L"#Records";
+        case pse::kPidFlags: return L"Flags";
+        case pse::kPidLight: return L"Light";
+        case pse::kPidMasterCount: return L"#Masters";
+        case pse::kPidDeletedCount: return L"#Deleted";
+        case pse::kPidEslable: return L"ESLable";
+        case pse::kPidMasters: return L"Masters";
+        case pse::kPidEslNote: return L"ESL note";
     }
     return L"?";
 }
@@ -37,7 +37,7 @@ const wchar_t* PidName(DWORD pid) {
 int wmain(int argc, wchar_t** argv) {
     _setmode(_fileno(stdout), _O_U8TEXT);
     if (argc < 3) {
-        fwprintf(stderr, L"usage: proptest <PluginProperties.dll> <plugin> [...]\n");
+        fwprintf(stderr, L"usage: proptest <PluginShellExtension.dll> <plugin> [...]\n");
         return 2;
     }
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -46,7 +46,7 @@ int wmain(int argc, wchar_t** argv) {
                                     GetProcAddress(dll, "DllGetClassObject"))
                               : nullptr;
     IClassFactory* factory = nullptr;
-    if (!getClassObject || FAILED(getClassObject(pp::kClsidPropertyHandler, IID_PPV_ARGS(&factory)))) {
+    if (!getClassObject || FAILED(getClassObject(pse::kClsidPropertyHandler, IID_PPV_ARGS(&factory)))) {
         fwprintf(stderr, L"cannot load the handler from %s\n", argv[1]);
         return 2;
     }
