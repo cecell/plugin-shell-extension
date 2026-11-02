@@ -32,7 +32,7 @@ jobs:
       INNO_URL: https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe
       INNO_SHA256: 8a5a6711c3766a6e5fb74f280ba0e3551e719ce94538d901fdbd1f8f9920b3f0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Inno Setup (verified)
         shell: pwsh
@@ -63,7 +63,8 @@ jobs:
           $lines = Get-ChildItem $dist -File | Sort-Object Name | ForEach-Object {
             "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
           }
-          $lines | Set-Content -Encoding ascii dist\SHA256SUMS.txt
+          # LF line endings, so "sha256sum -c SHA256SUMS.txt" works anywhere.
+          [IO.File]::WriteAllText("$PWD\dist\SHA256SUMS.txt", ($lines -join "`n") + "`n")
           "## SHA-256" >> $env:GITHUB_STEP_SUMMARY
           '```' >> $env:GITHUB_STEP_SUMMARY
           $lines >> $env:GITHUB_STEP_SUMMARY
@@ -79,7 +80,7 @@ jobs:
             dist/PluginShellExtension.dll
             dist/PluginShellExtension-*-setup.exe
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: PluginShellExtension
           path: dist/
