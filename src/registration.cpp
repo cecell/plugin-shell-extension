@@ -94,6 +94,13 @@ HRESULT RegisterPropertyHandler(const std::wstring& dllPath, const std::wstring&
     if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, clsidKey + L"\\InprocServer32", nullptr, dllPath);
     if (st == ERROR_SUCCESS)
         st = SetString(HKEY_LOCAL_MACHINE, clsidKey + L"\\InprocServer32", L"ThreadingModel", L"Both");
+    // The handler is initialized with a file path (IInitializeWithFile), which
+    // Windows only allows for handlers that run in the calling process.
+    if (st == ERROR_SUCCESS) {
+        DWORD one = 1;
+        st = RegSetKeyValueW(HKEY_LOCAL_MACHINE, clsidKey.c_str(), L"DisableProcessIsolation", REG_DWORD, &one,
+                             sizeof(one));
+    }
     for (const wchar_t* ext : kExtensions) {
         if (st == ERROR_SUCCESS)
             st = SetString(HKEY_LOCAL_MACHINE, std::wstring(kPropertyHandlers) + ext, nullptr,

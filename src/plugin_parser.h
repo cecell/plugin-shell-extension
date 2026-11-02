@@ -89,6 +89,10 @@ inline constexpr wchar_t kNeedsNewerGameText[] = L"Requires v1.6.1130 or later";
 // shortForm: "Already" (Explorer column) instead of "Already flagged".
 const wchar_t* EslStatusText(EslStatus status, bool shortForm);
 
+// The master names, each prefixed "X " when that file is not in the
+// plugin's own folder.
+std::vector<std::wstring> MarkMissingMasters(const std::wstring& pluginPath, const std::vector<std::wstring>& masters);
+
 // "ESM, ESL, Localized" in that order; empty when no bit is set.
 std::wstring FlagsText(uint32_t flags);
 // HEDR version rounded to 2 decimals, e.g. "1.71".

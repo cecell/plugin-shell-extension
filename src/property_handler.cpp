@@ -12,6 +12,8 @@
 #include <vector>
 
 #include "context_menu.h"
+#include "embedded_patterns.h"
+#include "itm.h"
 #include "plugin_parser.h"
 
 namespace pse {
@@ -19,7 +21,7 @@ namespace {
 
 constexpr DWORD kPids[] = {kPidHeaderVersion, kPidRecordCount, kPidFlags, kPidLight,
                            kPidMasterCount,   kPidDeletedCount, kPidEslable, kPidMasters, kPidEslNote,
-                           kPidFormVersion, kPidDeletedNavm, kPidFormCount};
+                           kPidFormVersion, kPidDeletedNavm, kPidFormCount, kPidItm};
 
 // The two values that need the full record walk, cached per process so a
 // folder refresh does not rescan every plugin. Keyed by file name, size and
@@ -36,17 +38,26 @@ using ScanKey = std::tuple<std::wstring, uint64_t, uint64_t>;
 
 std::mutex g_cacheLock;
 std::map<ScanKey, ScanSummary> g_cache;
+
+// The ITM check is slower still (it reads the masters), so it has its own
+// cache and runs only when the #ITM value is asked for.
+struct ItmSummary {
+    bool ok = false;
+    bool missingMaster = false;
+    size_t count = 0;
+};
+std::map<ScanKey, ItmSummary> g_itmCache;
 constexpr size_t kCacheLimit = 50000;
 
-class PropertyHandler final : public IInitializeWithStream, public IPropertyStore, public IPropertyStoreCapabilities {
+class PropertyHandler final : public IInitializeWithFile, public IPropertyStore, public IPropertyStoreCapabilities {
 public:
     PropertyHandler() { InterlockedIncrement(&g_dllRefs); }
 
     // IUnknown
     IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
         if (!ppv) return E_POINTER;
-        if (riid == IID_IUnknown || riid == IID_IInitializeWithStream) {
-            *ppv = static_cast<IInitializeWithStream*>(this);
+        if (riid == IID_IUnknown || riid == IID_IInitializeWithFile) {
+            *ppv = static_cast<IInitializeWithFile*>(this);
         } else if (riid == IID_IPropertyStore) {
             *ppv = static_cast<IPropertyStore*>(this);
         } else if (riid == IID_IPropertyStoreCapabilities) {
@@ -65,24 +76,21 @@ public:
         return static_cast<ULONG>(r);
     }
 
-    // IInitializeWithStream: only the header is read here; the record walk
-    // waits until a value that needs it is asked for.
-    IFACEMETHODIMP Initialize(IStream* stream, DWORD) override {
-        if (!stream) return E_INVALIDARG;
+    // IInitializeWithFile (not a stream: the ITM check and the missing-master
+    // marks need the plugin's folder). Only the header is read here; the
+    // record walk waits until a value that needs it is asked for.
+    IFACEMETHODIMP Initialize(LPCWSTR path, DWORD) override {
+        if (!path) return E_INVALIDARG;
         std::lock_guard<std::mutex> g(lock_);
-        if (stream_) return HRESULT_FROM_WIN32(ERROR_ALREADY_INITIALIZED);
-        stream_ = stream;
-        stream_->AddRef();
-        STATSTG st{};
-        if (SUCCEEDED(stream_->Stat(&st, STATFLAG_DEFAULT))) {
-            if (st.pwcsName) {
-                name_ = st.pwcsName;
-                CoTaskMemFree(st.pwcsName);
-            }
-            key_ = ScanKey(name_, st.cbSize.QuadPart,
-                           (static_cast<uint64_t>(st.mtime.dwHighDateTime) << 32) | st.mtime.dwLowDateTime);
+        if (!path_.empty()) return HRESULT_FROM_WIN32(ERROR_ALREADY_INITIALIZED);
+        path_ = path;
+        WIN32_FILE_ATTRIBUTE_DATA fa{};
+        if (GetFileAttributesExW(path, GetFileExInfoStandard, &fa)) {
+            key_ = ScanKey(path_, (static_cast<uint64_t>(fa.nFileSizeHigh) << 32) | fa.nFileSizeLow,
+                           (static_cast<uint64_t>(fa.ftLastWriteTime.dwHighDateTime) << 32) |
+                               fa.ftLastWriteTime.dwLowDateTime);
         }
-        header_ = ReadPluginHeader(stream_, name_);
+        header_ = ReadPluginHeader(path_);
         return S_OK;
     }
 
@@ -116,10 +124,18 @@ public:
             case kPidMasterCount:
                 return InitPropVariantFromUInt32(static_cast<ULONG>(header_.masters.size()), pv);
             case kPidMasters: {
+                // A master missing from the plugin's folder is marked "X ".
                 if (header_.masters.empty()) return S_OK;
+                std::vector<std::wstring> shown = MarkMissingMasters(path_, header_.masters);
                 std::vector<PCWSTR> names;
-                for (const auto& m : header_.masters) names.push_back(m.c_str());
+                for (const auto& m : shown) names.push_back(m.c_str());
                 return InitPropVariantFromStringVector(names.data(), static_cast<ULONG>(names.size()), pv);
+            }
+            case kPidItm: {
+                // Blank when there are none, like #Deleted.
+                const ItmSummary& s = Itm();
+                if (s.missingMaster) return InitPropVariantFromString(L"MissingMaster", pv);
+                return s.ok && s.count ? InitPropVariantFromString(std::to_wstring(s.count).c_str(), pv) : S_OK;
             }
             case kPidEslable:
                 // Short form for the column; the dialog says "Already flagged".
@@ -153,9 +169,32 @@ public:
     IFACEMETHODIMP IsPropertyWritable(REFPROPERTYKEY) override { return S_FALSE; }
 
 private:
-    ~PropertyHandler() {
-        if (stream_) stream_->Release();
-        InterlockedDecrement(&g_dllRefs);
+    ~PropertyHandler() { InterlockedDecrement(&g_dllRefs); }
+
+    const ItmSummary& Itm() {
+        std::lock_guard<std::mutex> g(lock_);
+        if (itmDone_) return itm_;
+        itmDone_ = true;
+        if (!std::get<0>(key_).empty()) {
+            std::lock_guard<std::mutex> c(g_cacheLock);
+            auto it = g_itmCache.find(key_);
+            if (it != g_itmCache.end()) {
+                itm_ = it->second;
+                return itm_;
+            }
+        }
+        const PatternCatalog* cat = EmbeddedPatterns();
+        if (!cat) return itm_;
+        ItmResult r = FindItms(path_, *cat);
+        itm_.ok = r.ok;
+        itm_.missingMaster = !r.missingMasters.empty();
+        itm_.count = r.itms.size();
+        if (r.ok && !std::get<0>(key_).empty()) {
+            std::lock_guard<std::mutex> c(g_cacheLock);
+            if (g_itmCache.size() >= kCacheLimit) g_itmCache.clear();
+            g_itmCache[key_] = itm_;
+        }
+        return itm_;
     }
 
     const ScanSummary& Scan() {
@@ -170,7 +209,7 @@ private:
                 return summary_;
             }
         }
-        GroupScan scan = ScanGroups(stream_, header_);
+        GroupScan scan = ScanGroups(path_, header_);
         summary_.ok = scan.ok;
         summary_.deleted = scan.totalDeleted;
         summary_.deletedNavm = scan.deletedNavm;
@@ -188,12 +227,13 @@ private:
 
     long refs_ = 1;
     std::mutex lock_;
-    IStream* stream_ = nullptr;
-    std::wstring name_;
+    std::wstring path_;
     ScanKey key_;
     PluginHeader header_;
     bool scanned_ = false;
     ScanSummary summary_;
+    bool itmDone_ = false;
+    ItmSummary itm_;
 };
 
 class Factory final : public IClassFactory {

@@ -91,5 +91,13 @@
       <displayInfo displayType="Number" defaultColumnWidth="9" alignment="Right"/>
     </propertyDescription>
 
+    <!-- A string, not a number: it can also say "MissingMaster". -->
+    <propertyDescription name="Cecell.PluginShellExtension.ItmCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="14">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="32"/>
+      <labelInfo label="#ITM"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="12" alignment="Right"/>
+    </propertyDescription>
+
   </propertyDescriptionList>
 </schema>

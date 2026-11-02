@@ -1,5 +1,5 @@
 // Drives the property handler the way Explorer does, without registering it:
-// loads the DLL, creates the handler class, initializes it with a file stream
+// loads the DLL, creates the handler class, initializes it with the file path
 // and prints every property it reports.
 //   proptest.exe <PluginShellExtension.dll> <plugin> [<plugin> ...]
 #include <windows.h>
@@ -31,6 +31,7 @@ const wchar_t* PidName(DWORD pid) {
         case pse::kPidFormVersion: return L"Form Ver";
         case pse::kPidDeletedNavm: return L"Del NAVM";
         case pse::kPidFormCount: return L"#Forms";
+        case pse::kPidItm: return L"#ITM";
     }
     return L"?";
 }
@@ -56,12 +57,10 @@ int wmain(int argc, wchar_t** argv) {
     int failures = 0;
     for (int i = 2; i < argc; ++i) {
         wprintf(L"== %s\n", argv[i]);
-        IStream* stream = nullptr;
-        IInitializeWithStream* init = nullptr;
+        IInitializeWithFile* init = nullptr;
         IPropertyStore* store = nullptr;
         ULONGLONG start = GetTickCount64();
-        if (FAILED(SHCreateStreamOnFileEx(argv[i], STGM_READ | STGM_SHARE_DENY_NONE, 0, FALSE, nullptr, &stream)) ||
-            FAILED(factory->CreateInstance(nullptr, IID_PPV_ARGS(&init))) || FAILED(init->Initialize(stream, STGM_READ)) ||
+        if (FAILED(factory->CreateInstance(nullptr, IID_PPV_ARGS(&init))) || FAILED(init->Initialize(argv[i], STGM_READ)) ||
             FAILED(init->QueryInterface(IID_PPV_ARGS(&store)))) {
             wprintf(L"failed to open\n");
             ++failures;
@@ -87,7 +86,6 @@ int wmain(int argc, wchar_t** argv) {
         }
         if (store) store->Release();
         if (init) init->Release();
-        if (stream) stream->Release();
     }
     factory->Release();
     CoUninitialize();

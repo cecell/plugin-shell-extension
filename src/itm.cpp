@@ -10,6 +10,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <unordered_map>
 
@@ -215,21 +216,66 @@ bool ReadFromBsa(const std::wstring& bsaPath, const std::string& folder, const s
     return ok;
 }
 
+// A read-only memory mapping of a whole file.
+struct MappedView {
+    HANDLE file = INVALID_HANDLE_VALUE, mapping = nullptr;
+    const uint8_t* p = nullptr;
+    size_t n = 0;
+
+    MappedView() = default;
+    MappedView(const MappedView&) = delete;
+    MappedView& operator=(const MappedView&) = delete;
+    ~MappedView() {
+        if (p) UnmapViewOfFile(p);
+        if (mapping) CloseHandle(mapping);
+        if (file != INVALID_HANDLE_VALUE) CloseHandle(file);
+    }
+    bool Open(const std::wstring& path) {
+        file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (file == INVALID_HANDLE_VALUE) return false;
+        LARGE_INTEGER size{};
+        if (!GetFileSizeEx(file, &size) || size.QuadPart == 0) return false;
+        mapping = CreateFileMappingW(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
+        if (!mapping) return false;
+        p = static_cast<const uint8_t*>(MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0));
+        n = static_cast<size_t>(size.QuadPart);
+        return p != nullptr;
+    }
+    const uint8_t* data() const { return p; }
+    size_t size() const { return n; }
+};
+
 struct PluginFile {
     std::string name;  // lower case
     std::wstring dir;  // folder, with trailing separator
-    std::vector<uint8_t> bytes;
+    MappedView bytes;
     std::vector<std::string> masters;  // lower case
     bool localized = false;
-    std::unordered_map<uint32_t, size_t> index;  // stored FormID -> record offset
-    std::vector<size_t> order;                   // record offsets in file order
+    // Every record, sorted by stored FormID (first occurrence wins), with the
+    // stored FormID of the WRLD / CELL / DIAL it sits under (0 = none).
+    struct Entry {
+        uint32_t fid, offset, parent;
+    };
+    std::vector<Entry> index;
+    std::vector<size_t> order;  // record offsets in file order (the checked plugin only)
+    const Entry* Find(uint32_t fid) const {
+        auto it = std::lower_bound(index.begin(), index.end(), fid,
+                                   [](const Entry& e, uint32_t f) { return e.fid < f; });
+        return it == index.end() || it->fid != fid ? nullptr : &*it;
+    }
+    bool Find(uint32_t fid, size_t* offset) const {
+        const Entry* e = Find(fid);
+        if (e) *offset = e->offset;
+        return e != nullptr;
+    }
     // Records inside a world / cell / topic children group, by the stored
-    // FormID of that WRLD / CELL / DIAL.
+    // FormID of that WRLD / CELL / DIAL (the checked plugin only).
     std::unordered_map<uint32_t, std::vector<size_t>> children;
-    // Record offset -> stored FormID of the WRLD / CELL / DIAL it sits under.
-    std::unordered_map<size_t, uint32_t> parent;
 
     // Localized string tables, loaded on first use: strings, dlstrings, ilstrings.
+    // Masters are shared between checks on several threads.
+    mutable std::mutex stringsLock;
     mutable bool stringsLoaded = false;
     mutable std::unordered_map<uint32_t, std::string> strings[3];
 
@@ -272,6 +318,7 @@ struct PluginFile {
     }
     // Text of a localized string ID, trying the field's own table first.
     const std::string* Text(uint32_t id, const std::string& cls) const {
+        std::lock_guard<std::mutex> g(stringsLock);  // the tables never change once loaded
         if (!stringsLoaded) LoadStrings();
         int first = cls == "dlstrings" ? 1 : cls == "ilstrings" ? 2 : 0;
         for (int k = 0; k < 3; ++k) {
@@ -282,9 +329,10 @@ struct PluginFile {
         return nullptr;
     }
 
-    bool Load(const std::wstring& path, std::string* error) {
+    // `tree`: also record order, parents and children (the checked plugin).
+    bool Load(const std::wstring& path, bool tree, std::string* error) {
         dir = path.substr(0, path.find_last_of(L"\\/") + 1);
-        if (!ReadWholeFile(path, &bytes)) {
+        if (!bytes.Open(path)) {
             *error = "cannot open";
             return false;
         }
@@ -324,17 +372,25 @@ struct PluginFile {
                 *error = "record runs past the end of the file";
                 return false;
             }
-            index.emplace(U32(r + 12), p);
-            order.push_back(p);
+            uint32_t par = 0;
             for (auto g = groups.rbegin(); g != groups.rend(); ++g) {
                 if (g->type == 1 || g->type == 6 || g->type == 7) {  // world / cell / topic children
-                    children[g->label].push_back(p);
-                    parent[p] = g->label;
+                    par = g->label;
                     break;
                 }
             }
+            index.push_back({U32(r + 12), static_cast<uint32_t>(p), par});
+            if (tree) {
+                order.push_back(p);
+                if (par) children[par].push_back(p);
+            }
             p += 24 + len;
         }
+        std::stable_sort(index.begin(), index.end(), [](const Entry& a, const Entry& b) { return a.fid < b.fid; });
+        index.erase(std::unique(index.begin(), index.end(),
+                                [](const Entry& a, const Entry& b) { return a.fid == b.fid; }),
+                    index.end());
+        index.shrink_to_fit();
         return true;
     }
 
@@ -609,9 +665,9 @@ bool ReadVersion(const PluginFile& f, size_t offset, const PatternCatalog& cat, 
     }
     // The cell a reference sits in (the topic of an INFO, the world of a
     // CELL) is part of what xEdit compares.
-    auto par = f.parent.find(offset);
-    if (par != f.parent.end()) {
-        auto o = f.Owner(par->second);
+    const PluginFile::Entry* entry = f.Find(U32(rec + 12));
+    if (entry && entry->offset == offset && entry->parent) {
+        auto o = f.Owner(entry->parent);
         char buf[32];
         snprintf(buf, sizeof(buf), ":%06X", o.second);
         Field& fld = out->fields["<parent>"];
@@ -621,12 +677,47 @@ bool ReadVersion(const PluginFile& f, size_t offset, const PatternCatalog& cat, 
     return true;
 }
 
+// Masters stay loaded between checks (Explorer checks every plugin in a
+// folder against the same few masters). Keyed by path, size and write time.
+std::shared_ptr<const PluginFile> LoadMaster(const std::wstring& path, const std::string& name) {
+    WIN32_FILE_ATTRIBUTE_DATA fa{};
+    if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &fa)) return nullptr;
+    std::wstring key = path + L"|" + std::to_wstring(fa.nFileSizeLow) + L"|" + std::to_wstring(fa.nFileSizeHigh) +
+                       L"|" + std::to_wstring(fa.ftLastWriteTime.dwLowDateTime) + L"|" +
+                       std::to_wstring(fa.ftLastWriteTime.dwHighDateTime);
+    for (auto& c : key) c = static_cast<wchar_t>(towlower(c));
+    static std::mutex lock;
+    static std::vector<std::pair<std::wstring, std::shared_ptr<const PluginFile>>> cache;  // most recent last
+    constexpr size_t kCacheSize = 8;
+    {
+        std::lock_guard<std::mutex> g(lock);
+        for (size_t i = 0; i < cache.size(); ++i) {
+            if (cache[i].first == key) {
+                auto hit = cache[i];
+                cache.erase(cache.begin() + i);
+                cache.push_back(hit);
+                return hit.second;
+            }
+        }
+    }
+    auto mf = std::make_shared<PluginFile>();
+    mf->name = name;
+    std::string e;
+    if (!mf->Load(path, false, &e)) return nullptr;
+    std::lock_guard<std::mutex> g(lock);
+    cache.emplace_back(key, mf);
+    if (cache.size() > kCacheSize) cache.erase(cache.begin());
+    return mf;
+}
+
 // ---- the comparison --------------------------------------------------------------
+
+std::wstring g_mastersFolder;  // test hook, see SetItmMastersFolder
 
 struct Session {
     PatternCatalog cat;  // the catalog with the xEdit-shaped patterns applied
     PluginFile plugin;
-    std::vector<std::unique_ptr<PluginFile>> masters;  // in load order (the plugin's master list)
+    std::vector<std::shared_ptr<const PluginFile>> masters;  // in load order (the plugin's master list)
     std::vector<std::string> missing;
 
     explicit Session(const PatternCatalog& c) : cat(c) {
@@ -635,6 +726,7 @@ struct Session {
 
     bool Open(const std::wstring& path, std::string* error) {
         std::wstring dir = path.substr(0, path.find_last_of(L"\\/") + 1);
+        std::wstring masterDir = g_mastersFolder.empty() ? dir : g_mastersFolder;
         // Master names in a plugin are Windows-1252 text.
         auto narrow = [](const std::wstring& w) {
             int n = WideCharToMultiByte(1252, 0, w.c_str(), static_cast<int>(w.size()), nullptr, 0, nullptr, nullptr);
@@ -649,16 +741,11 @@ struct Session {
             return w;
         };
         plugin.name = Lower(narrow(path.substr(dir.size())));
-        if (!plugin.Load(path, error)) return false;
+        if (!plugin.Load(path, true, error)) return false;
         for (const auto& m : plugin.masters) {
-            auto mf = std::make_unique<PluginFile>();
-            mf->name = m;
-            std::string e;
-            if (!mf->Load(dir + widen(m), &e)) {
-                missing.push_back(m);
-                continue;
-            }
-            masters.push_back(std::move(mf));
+            auto mf = LoadMaster(masterDir + widen(m), m);
+            if (mf) masters.push_back(std::move(mf));
+            else missing.push_back(m);
         }
         return true;
     }
@@ -681,11 +768,11 @@ struct Session {
         for (const auto& m : masters) {
             uint32_t stored;
             if (!m->StoredId(owner, local, &stored)) continue;
-            auto it = m->index.find(stored);
-            if (it == m->index.end()) continue;
+            size_t at;
+            if (!m->Find(stored, &at)) continue;
             if (m->name == owner) definingFound = true;
             versions.emplace_back();
-            if (!ReadVersion(*m, it->second, cat, &versions.back())) return note(m->name + ": " + versions.back().error);
+            if (!ReadVersion(*m, at, cat, &versions.back())) return note(m->name + ": " + versions.back().error);
         }
         if (!definingFound) return note("injected or the defining master is missing");
         versions.emplace_back();
@@ -765,11 +852,17 @@ struct Session {
 
 }  // namespace
 
-ItmResult FindItms(const std::wstring& pluginPath, const PatternCatalog& catalog) {
+namespace {
+
+ItmResult FindItmsImpl(const std::wstring& pluginPath, const PatternCatalog& catalog) {
     ItmResult r;
     Session s(catalog);
     if (!s.Open(pluginPath, &r.error)) return r;
     r.missingMasters = s.missing;
+    if (!s.missing.empty()) {
+        r.ok = true;  // without every master there is nothing to compare against
+        return r;
+    }
     std::unordered_map<size_t, bool> itm;
     for (size_t off : s.plugin.order) {
         uint32_t fid = U32(s.plugin.bytes.data() + off + 12);
@@ -810,14 +903,50 @@ ItmResult FindItms(const std::wstring& pluginPath, const PatternCatalog& catalog
     return r;
 }
 
+void FindItmsGuarded(const std::wstring& pluginPath, const PatternCatalog& catalog, ItmResult* out) {
+    try {
+        *out = FindItmsImpl(pluginPath, catalog);
+    } catch (const std::exception& e) {
+        *out = ItmResult();
+        out->error = e.what();
+    }
+}
+
+// Files are memory-mapped: a file shrinking under us faults on access.
+bool FindItmsSeh(const std::wstring* pluginPath, const PatternCatalog* catalog, ItmResult* out) {
+    __try {
+        FindItmsGuarded(*pluginPath, *catalog, out);
+        return true;
+    } __except (GetExceptionCode() == EXCEPTION_IN_PAGE_ERROR ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
+        return false;
+    }
+}
+
+}  // namespace
+
+void SetItmMastersFolder(const std::wstring& folder) {
+    g_mastersFolder = folder;
+    if (!g_mastersFolder.empty() && g_mastersFolder.back() != L'\\' && g_mastersFolder.back() != L'/')
+        g_mastersFolder += L'\\';
+}
+
+ItmResult FindItms(const std::wstring& pluginPath, const PatternCatalog& catalog) {
+    ItmResult r;
+    if (!FindItmsSeh(&pluginPath, &catalog, &r)) {
+        r = ItmResult();
+        r.error = "a file changed while it was read";
+    }
+    return r;
+}
+
 std::vector<std::string> ExplainItm(const std::wstring& pluginPath, const PatternCatalog& catalog, uint32_t formId) {
     std::vector<std::string> why;
     Session s(catalog);
     std::string err;
     if (!s.Open(pluginPath, &err)) return {err};
-    auto it = s.plugin.index.find(formId);
-    if (it == s.plugin.index.end()) return {"no such record"};
-    if (s.Compare(it->second, &why)) why.push_back("ITM");
+    size_t at;
+    if (!s.plugin.Find(formId, &at)) return {"no such record"};
+    if (s.Compare(at, &why)) why.push_back("ITM");
     return why;
 }
 

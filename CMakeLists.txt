@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(PluginShellExtension VERSION 0.91 LANGUAGES CXX RC)
+project(PluginShellExtension VERSION 0.92 LANGUAGES CXX RC)
 # Windows version resources need a third number; "0.90" has none.
 if(NOT PROJECT_VERSION_PATCH)
     set(PROJECT_VERSION_PATCH 0)
@@ -28,13 +28,17 @@ add_library(PluginShellExtension SHARED
     src/context_menu.cpp
     src/property_window.cpp
     src/property_handler.cpp
+    src/embedded_patterns.cpp
     src/PluginShellExtension.def
     src/PluginShellExtension.rc
     src/PluginShellExtension.manifest)
-target_link_libraries(PluginShellExtension PRIVATE psecore comctl32 uxtheme shell32 ole32 oleaut32 propsys
+# The ITM pattern catalog is compiled into the DLL as a resource.
+set_source_files_properties(src/PluginShellExtension.rc PROPERTIES
+    OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/data/itm_patterns.json)
+target_link_libraries(PluginShellExtension PRIVATE psecore psepattern comctl32 uxtheme shell32 ole32 oleaut32 propsys
     windowscodecs shlwapi dwmapi)
 
-# Subrecord pattern engine (ITM work in progress; not linked into the DLL yet).
+# Subrecord pattern engine and the ITM check.
 add_library(psepattern STATIC
     src/pattern_value.cpp
     src/pattern_engine.cpp

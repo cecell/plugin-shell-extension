@@ -3,6 +3,9 @@
 // The manifest (resource 2, comctl32 v6) is merged in by the linker from
 // PluginShellExtension.manifest and activated per thread by property_window.cpp.
 
+// Subrecord patterns for the ITM check (embedded_patterns.cpp).
+101 RCDATA "../data/itm_patterns.json"
+
 
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION PSE_VERSION_MAJOR,PSE_VERSION_MINOR,PSE_VERSION_PATCH,0

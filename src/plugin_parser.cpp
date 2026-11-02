@@ -585,4 +585,14 @@ GroupScan ScanGroups(IStream* stream, const PluginHeader& header) {
     return scan;
 }
 
+std::vector<std::wstring> MarkMissingMasters(const std::wstring& pluginPath, const std::vector<std::wstring>& masters) {
+    std::wstring dir = pluginPath.substr(0, pluginPath.find_last_of(L"\\/") + 1);
+    std::vector<std::wstring> out;
+    for (const auto& m : masters) {
+        bool present = GetFileAttributesW((dir + m).c_str()) != INVALID_FILE_ATTRIBUTES;
+        out.push_back(present ? m : L"X " + m);
+    }
+    return out;
+}
+
 }  // namespace pse
