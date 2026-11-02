@@ -86,6 +86,8 @@ int wmain(int argc, wchar_t** argv) {
         }
         if (store) store->Release();
         if (init) init->Release();
+        // PSE_ASYNC_TEST: give the background ITM check time before the next file.
+        if (GetEnvironmentVariableW(L"PSE_ASYNC_TEST", nullptr, 0) > 0) Sleep(6000);
     }
     factory->Release();
     CoUninitialize();

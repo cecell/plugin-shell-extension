@@ -2,12 +2,15 @@
 
 #include <propsys.h>
 #include <propvarutil.h>
+#include <shlobj.h>
 #include <shobjidl.h>
 
+#include <deque>
 #include <map>
 #include <mutex>
 #include <new>
 #include <string>
+#include <set>
 #include <tuple>
 #include <vector>
 
@@ -38,16 +41,117 @@ using ScanKey = std::tuple<std::wstring, uint64_t, uint64_t>;
 
 std::mutex g_cacheLock;
 std::map<ScanKey, ScanSummary> g_cache;
+constexpr size_t kCacheLimit = 50000;
 
-// The ITM check is slower still (it reads the masters), so it has its own
-// cache and runs only when the #ITM value is asked for.
+// The ITM check is slower still (it reads the masters). In Explorer it runs
+// on one background worker: the column says "Working" until the result is
+// cached, then Explorer is told the file changed and asks again. Results are
+// keyed by the plugin's and every master's size and write time, so cleaning
+// a master refreshes its dependents too (on the next F5).
 struct ItmSummary {
     bool ok = false;
-    bool missingMaster = false;
     size_t count = 0;
 };
-std::map<ScanKey, ItmSummary> g_itmCache;
-constexpr size_t kCacheLimit = 50000;
+std::map<std::wstring, ItmSummary> g_itmCache;
+std::deque<std::pair<std::wstring, std::wstring>> g_itmQueue;  // (path, key)
+std::set<std::wstring> g_itmPending;
+bool g_itmWorkerRunning = false;
+
+// "size:writetime", or empty when the file is not there.
+std::wstring FileStamp(const std::wstring& path) {
+    WIN32_FILE_ATTRIBUTE_DATA fa{};
+    if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &fa)) return L"";
+    uint64_t size = (static_cast<uint64_t>(fa.nFileSizeHigh) << 32) | fa.nFileSizeLow;
+    uint64_t time = (static_cast<uint64_t>(fa.ftLastWriteTime.dwHighDateTime) << 32) | fa.ftLastWriteTime.dwLowDateTime;
+    return std::to_wstring(size) + L":" + std::to_wstring(time);
+}
+
+// The cache key, or empty if a master is missing.
+std::wstring ItmKey(const std::wstring& path, const std::vector<std::wstring>& masters) {
+    std::wstring dir = path.substr(0, path.find_last_of(L"\\/") + 1);
+    std::wstring key = path + L"|" + FileStamp(path);
+    for (const auto& m : masters) {
+        std::wstring stamp = FileStamp(dir + m);
+        if (stamp.empty()) return L"";
+        key += L"|" + stamp;
+    }
+    return key;
+}
+
+ItmSummary ComputeItm(const std::wstring& path) {
+    ItmSummary s;
+    if (const PatternCatalog* cat = EmbeddedPatterns()) {
+        ItmResult r = FindItms(path, *cat);
+        s.ok = r.ok && r.missingMasters.empty();
+        s.count = r.itms.size();
+    }
+    return s;
+}
+
+void StoreItm(const std::wstring& key, const ItmSummary& s) {
+    std::lock_guard<std::mutex> c(g_cacheLock);
+    if (g_itmCache.size() >= kCacheLimit) g_itmCache.clear();
+    g_itmCache[key] = s;
+}
+
+DWORD WINAPI ItmWorker(void* module) {
+    // Background mode lowers this thread's CPU, disk and memory priority, so
+    // a folder full of plugins never makes Explorer itself sluggish.
+    SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
+    for (;;) {
+        std::pair<std::wstring, std::wstring> job;
+        {
+            std::lock_guard<std::mutex> c(g_cacheLock);
+            if (g_itmQueue.empty()) {
+                g_itmWorkerRunning = false;
+                break;
+            }
+            job = std::move(g_itmQueue.front());
+            g_itmQueue.pop_front();
+        }
+        StoreItm(job.second, ComputeItm(job.first));
+        {
+            std::lock_guard<std::mutex> c(g_cacheLock);
+            g_itmPending.erase(job.second);
+        }
+        // Explorer asks for the item's values again and now finds the result.
+        SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, job.first.c_str(), nullptr);
+    }
+    FreeLibraryAndExitThread(static_cast<HMODULE>(module), 0);
+}
+
+// Queues the check; returns false if no worker could be started.
+bool QueueItm(const std::wstring& path, const std::wstring& key) {
+    std::lock_guard<std::mutex> c(g_cacheLock);
+    if (g_itmPending.insert(key).second) g_itmQueue.emplace_back(path, key);
+    if (g_itmWorkerRunning) return true;
+    HMODULE module = nullptr;  // the worker keeps the DLL loaded until it is done
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&ItmWorker), &module);
+    HANDLE t = CreateThread(nullptr, 0, &ItmWorker, module, 0, nullptr);
+    if (!t) {
+        FreeLibrary(module);
+        g_itmPending.erase(key);
+        g_itmQueue.pop_back();
+        return false;
+    }
+    CloseHandle(t);
+    g_itmWorkerRunning = true;
+    return true;
+}
+
+// Only Explorer gets "Working"; anything else (the search indexer) waits for
+// the real value, so a placeholder never gets stored.
+bool InExplorer() {
+    static const bool explorer = [] {
+        wchar_t exe[MAX_PATH] = {};
+        GetModuleFileNameW(nullptr, exe, MAX_PATH);
+        const wchar_t* base = wcsrchr(exe, L'\\');
+        // PSE_ASYNC_TEST=1 lets proptest exercise the Explorer path.
+        return _wcsicmp(base ? base + 1 : exe, L"explorer.exe") == 0 ||
+               GetEnvironmentVariableW(L"PSE_ASYNC_TEST", nullptr, 0) > 0;
+    }();
+    return explorer;
+}
 
 class PropertyHandler final : public IInitializeWithFile, public IPropertyStore, public IPropertyStoreCapabilities {
 public:
@@ -132,9 +236,25 @@ public:
                 return InitPropVariantFromStringVector(names.data(), static_cast<ULONG>(names.size()), pv);
             }
             case kPidItm: {
-                // Blank when there are none, like #Deleted.
-                const ItmSummary& s = Itm();
-                if (s.missingMaster) return InitPropVariantFromString(L"MissingMaster", pv);
+                // "MissingMaster" at once; "Working" while the check runs;
+                // then the count, blank when there are none (like #Deleted).
+                std::wstring itmKey = ItmKey(path_, header_.masters);
+                if (itmKey.empty()) return InitPropVariantFromString(L"MissingMaster", pv);
+                ItmSummary s;
+                bool cached = false;
+                {
+                    std::lock_guard<std::mutex> c(g_cacheLock);
+                    auto it = g_itmCache.find(itmKey);
+                    if (it != g_itmCache.end()) {
+                        s = it->second;
+                        cached = true;
+                    }
+                }
+                if (!cached) {
+                    if (InExplorer() && QueueItm(path_, itmKey)) return InitPropVariantFromString(L"Working", pv);
+                    s = ComputeItm(path_);
+                    StoreItm(itmKey, s);
+                }
                 return s.ok && s.count ? InitPropVariantFromString(std::to_wstring(s.count).c_str(), pv) : S_OK;
             }
             case kPidEslable:
@@ -171,32 +291,6 @@ public:
 private:
     ~PropertyHandler() { InterlockedDecrement(&g_dllRefs); }
 
-    const ItmSummary& Itm() {
-        std::lock_guard<std::mutex> g(lock_);
-        if (itmDone_) return itm_;
-        itmDone_ = true;
-        if (!std::get<0>(key_).empty()) {
-            std::lock_guard<std::mutex> c(g_cacheLock);
-            auto it = g_itmCache.find(key_);
-            if (it != g_itmCache.end()) {
-                itm_ = it->second;
-                return itm_;
-            }
-        }
-        const PatternCatalog* cat = EmbeddedPatterns();
-        if (!cat) return itm_;
-        ItmResult r = FindItms(path_, *cat);
-        itm_.ok = r.ok;
-        itm_.missingMaster = !r.missingMasters.empty();
-        itm_.count = r.itms.size();
-        if (r.ok && !std::get<0>(key_).empty()) {
-            std::lock_guard<std::mutex> c(g_cacheLock);
-            if (g_itmCache.size() >= kCacheLimit) g_itmCache.clear();
-            g_itmCache[key_] = itm_;
-        }
-        return itm_;
-    }
-
     const ScanSummary& Scan() {
         std::lock_guard<std::mutex> g(lock_);
         if (scanned_) return summary_;
@@ -232,8 +326,6 @@ private:
     PluginHeader header_;
     bool scanned_ = false;
     ScanSummary summary_;
-    bool itmDone_ = false;
-    ItmSummary itm_;
 };
 
 class Factory final : public IClassFactory {
