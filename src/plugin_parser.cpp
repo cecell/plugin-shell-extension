@@ -151,6 +151,7 @@ PluginHeader ReadHeader(ByteSource& src, bool lightExtension) {
     }
     uint32_t dataSize = U32(rec + 4);
     h.flags = U32(rec + 8);
+    h.formVersion = U16(rec + 20);
     h.light = h.light || (h.flags & kFlagEsl) != 0;
     h.firstGroupOffset = 24ull + dataSize;
 
@@ -393,6 +394,7 @@ void FinishScan(const WalkOutput& out, WalkResult result, GroupScan* scan) {
         for (size_t c = 0; c < 4; ++c) dc.label += static_cast<wchar_t>(kDeletedTypes[t][c]);
         dc.records = out.deleted[t];
         scan->totalDeleted += dc.records;
+        if (dc.label == L"NAVM") scan->deletedNavm = dc.records;
         scan->deleted.push_back(std::move(dc));
     }
     for (size_t i = 0; i < out.count; ++i) {

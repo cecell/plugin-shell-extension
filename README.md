@@ -21,6 +21,7 @@ Requires Windows 10 or 11, 64-bit.
 | Property | Shows |
 |---|---|
 | Header version | the `HEDR` version, e.g. `1.70` or `1.71` |
+| Form version | the file header's form version: `44` means it was last saved by a Skyrim SE tool, `43` by an LE (Oldrim) tool |
 | Records | the `HEDR` record count (records plus groups, as the Creation Kit writes it) |
 | Flags | the header flags that are set: `ESM`, `ESL`, `Localized` |
 | Light | True if the game loads the plugin as light (`.esl` file, or the ESL flag) |
@@ -30,9 +31,10 @@ Requires Windows 10 or 11, 64-bit.
 | Masters | one per line as `[index] name`; the index is the FormID prefix that refers to that master |
 | Record types | each top-level group with its record count, alphabetical: `CELL (2943), STAT (11), ...`. A group's count includes everything nested in it, so `CELL` includes its placed references and `DIAL` its `INFO`s |
 | Deleted forms | deleted placed objects and navmeshes by type, `REFR (93), NAVM (5)`, or "None". These are the types xEdit's Quick Auto Clean deals with (`REFR`, `ACHR`, `PGRE`, `PMIS`, `PARW`, `PBAR`, `PBEA`, `PCON`, `PFLA`, `PHZD`) plus `NAVM` |
+| Deleted Navmeshes | how many of the deleted forms are navmeshes (`NAVM`); xEdit cannot undelete these |
 | Size, Created, Modified, Attributes | formatted exactly as Windows' own Details tab shows them |
 
-The header fields appear at once. Record types, Deleted forms and ESLable need
+The header fields appear at once. Record types, the deleted counts and ESLable need
 a pass over every record, which runs in the background and fills in a moment
 later (Skyrim.esm, 250 MB, takes about a second).
 
@@ -67,11 +69,13 @@ tooltip** (on by default) makes these fields available in Explorer:
 | Column | Value |
 |---|---|
 | Header Ver | the header version, e.g. `1.71` |
+| Form Ver | the file header's form version, `44` (SE) or `43` (LE) |
 | #Records | the header record count (sorts as a number) |
 | Flags | `ESM, ESL, Localized` |
 | Is Light | True / False |
 | #Masters | number of masters |
 | #Deleted | the Deleted forms total, a hint that the plugin may need cleaning; blank when there are none |
+| Del NAVM | how many of those are deleted navmeshes; blank when there are none |
 | ESLable | Already, True, Save in CK, False or Corrupted, as above |
 
 Turn the columns on in Details view: right-click a column header > **More...**.
@@ -85,7 +89,7 @@ applies, the ESLable note.
 <img src="docs/details-pane.png" alt="Details pane" width="320">
 
 
-#Deleted and ESLable fill in after the other columns, because they need the
+#Deleted, Del NAVM and ESLable fill in after the other columns, because they need the
 pass over every record. Results are remembered per Explorer session, so
 refreshing a folder does not scan the plugins again.
 

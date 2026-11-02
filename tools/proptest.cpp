@@ -28,6 +28,8 @@ const wchar_t* PidName(DWORD pid) {
         case pse::kPidEslable: return L"ESLable";
         case pse::kPidMasters: return L"Masters";
         case pse::kPidEslNote: return L"ESL note";
+        case pse::kPidFormVersion: return L"Form Ver";
+        case pse::kPidDeletedNavm: return L"Del NAVM";
     }
     return L"?";
 }
