@@ -96,7 +96,7 @@
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="32"/>
       <labelInfo label="#ITM"/>
       <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
-      <displayInfo displayType="String" defaultColumnWidth="12" alignment="Right"/>
+      <displayInfo displayType="String" defaultColumnWidth="7" alignment="Right"/>
     </propertyDescription>
 
   </propertyDescriptionList>

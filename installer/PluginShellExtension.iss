@@ -82,6 +82,8 @@ Type: files; Name: "{app}\*.old"
 
 [UninstallDelete]
 Type: files; Name: "{app}\*.old"
+; The saved column results (src/disk_cache.cpp)
+Type: filesandordirs; Name: "{localappdata}\Plugin Shell Extension"
 
 [Registry]
 ; COM server

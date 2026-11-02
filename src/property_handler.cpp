@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "context_menu.h"
+#include "disk_cache.h"
 #include "embedded_patterns.h"
 #include "itm.h"
 #include "plugin_parser.h"
@@ -66,10 +67,15 @@ std::wstring FileStamp(const std::wstring& path) {
     return std::to_wstring(size) + L":" + std::to_wstring(time);
 }
 
-// The cache key, or empty if a master is missing.
+std::wstring LowerPath(std::wstring p) {
+    if (!p.empty()) CharLowerBuffW(p.data(), static_cast<DWORD>(p.size()));
+    return p;
+}
+
+// The cache key ("I|path|stamp|master stamps..."), or empty if a master is missing.
 std::wstring ItmKey(const std::wstring& path, const std::vector<std::wstring>& masters) {
     std::wstring dir = path.substr(0, path.find_last_of(L"\\/") + 1);
-    std::wstring key = path + L"|" + FileStamp(path);
+    std::wstring key = L"I|" + LowerPath(path) + L"|" + FileStamp(path);
     for (const auto& m : masters) {
         std::wstring stamp = FileStamp(dir + m);
         if (stamp.empty()) return L"";
@@ -89,9 +95,31 @@ ItmSummary ComputeItm(const std::wstring& path) {
 }
 
 void StoreItm(const std::wstring& key, const ItmSummary& s) {
+    {
+        std::lock_guard<std::mutex> c(g_cacheLock);
+        if (g_itmCache.size() >= kCacheLimit) g_itmCache.clear();
+        g_itmCache[key] = s;
+    }
+    if (s.ok) DiskCachePut(key, std::to_wstring(s.count));  // survives restarts
+}
+
+// From memory, else from the disk cache.
+bool CachedItm(const std::wstring& key, ItmSummary* s) {
+    {
+        std::lock_guard<std::mutex> c(g_cacheLock);
+        auto it = g_itmCache.find(key);
+        if (it != g_itmCache.end()) {
+            *s = it->second;
+            return true;
+        }
+    }
+    std::wstring value;
+    if (!DiskCacheGet(key, &value)) return false;
+    s->ok = true;
+    s->count = static_cast<size_t>(_wtoi64(value.c_str()));
     std::lock_guard<std::mutex> c(g_cacheLock);
-    if (g_itmCache.size() >= kCacheLimit) g_itmCache.clear();
-    g_itmCache[key] = s;
+    g_itmCache[key] = *s;
+    return true;
 }
 
 DWORD WINAPI ItmWorker(void* module) {
@@ -241,16 +269,7 @@ public:
                 std::wstring itmKey = ItmKey(path_, header_.masters);
                 if (itmKey.empty()) return InitPropVariantFromString(L"MissingMaster", pv);
                 ItmSummary s;
-                bool cached = false;
-                {
-                    std::lock_guard<std::mutex> c(g_cacheLock);
-                    auto it = g_itmCache.find(itmKey);
-                    if (it != g_itmCache.end()) {
-                        s = it->second;
-                        cached = true;
-                    }
-                }
-                if (!cached) {
+                if (!CachedItm(itmKey, &s)) {
                     if (InExplorer() && QueueItm(path_, itmKey)) return InitPropVariantFromString(L"Working", pv);
                     s = ComputeItm(path_);
                     StoreItm(itmKey, s);
@@ -295,11 +314,33 @@ private:
         std::lock_guard<std::mutex> g(lock_);
         if (scanned_) return summary_;
         scanned_ = true;
-        if (!std::get<0>(key_).empty()) {
-            std::lock_guard<std::mutex> c(g_cacheLock);
-            auto it = g_cache.find(key_);
-            if (it != g_cache.end()) {
-                summary_ = it->second;
+        bool keyed = !std::get<0>(key_).empty();
+        // "S|path|size|time" -> "ok,deleted,navm,forms,newer,eslable"
+        std::wstring diskKey = L"S|" + LowerPath(std::get<0>(key_)) + L"|" + std::to_wstring(std::get<1>(key_)) +
+                               L"|" + std::to_wstring(std::get<2>(key_));
+        if (keyed) {
+            {
+                std::lock_guard<std::mutex> c(g_cacheLock);
+                auto it = g_cache.find(key_);
+                if (it != g_cache.end()) {
+                    summary_ = it->second;
+                    return summary_;
+                }
+            }
+            std::wstring v;
+            unsigned long long ok = 0, del = 0, navm = 0, forms = 0, newer = 0;
+            int used = 0;
+            if (DiskCacheGet(diskKey, &v) &&
+                swscanf_s(v.c_str(), L"%llu,%llu,%llu,%llu,%llu,%n", &ok, &del, &navm, &forms, &newer, &used) == 5 &&
+                used > 0) {
+                summary_.ok = ok != 0;
+                summary_.deleted = del;
+                summary_.deletedNavm = navm;
+                summary_.newRecords = forms;
+                summary_.needsNewerGame = newer != 0;
+                summary_.eslable = v.substr(used);
+                std::lock_guard<std::mutex> c(g_cacheLock);
+                g_cache[key_] = summary_;
                 return summary_;
             }
         }
@@ -311,10 +352,16 @@ private:
         EslStatus esl = ClassifyEsl(header_, scan);
         summary_.eslable = EslStatusText(esl, true);
         summary_.needsNewerGame = EslNeedsNewerGame(header_, scan, esl);
-        if (scan.ok && !std::get<0>(key_).empty()) {
-            std::lock_guard<std::mutex> c(g_cacheLock);
-            if (g_cache.size() >= kCacheLimit) g_cache.clear();
-            g_cache[key_] = summary_;
+        if (scan.ok && keyed) {
+            {
+                std::lock_guard<std::mutex> c(g_cacheLock);
+                if (g_cache.size() >= kCacheLimit) g_cache.clear();
+                g_cache[key_] = summary_;
+            }
+            DiskCachePut(diskKey, std::to_wstring(summary_.ok) + L"," + std::to_wstring(summary_.deleted) + L"," +
+                                      std::to_wstring(summary_.deletedNavm) + L"," +
+                                      std::to_wstring(summary_.newRecords) + L"," +
+                                      std::to_wstring(summary_.needsNewerGame) + L"," + summary_.eslable);
         }
         return summary_;
     }
