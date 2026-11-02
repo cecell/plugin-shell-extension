@@ -111,13 +111,18 @@ clean Windows runner, not on a developer PC:
   against a pinned SHA-256 before use
 - every run publishes `SHA256SUMS.txt` for the DLL and the installer, both
   in the run summary and in the downloadable artifact
-- pushing a tag such as `v0.90` publishes a GitHub Release with the same files
-- when the repository is public, each file also gets signed build provenance
-  that ties its hash to the commit and the workflow run:
+- a GitHub Release publishes one run's artifact unchanged, so its files are
+  byte for byte the ones that run hashed; the release notes link the run
+- runs since the repository became public also attach signed build
+  provenance that ties each file's hash to the commit and the run:
 
 ```
-gh attestation verify PluginShellExtension-0.90-setup.exe --repo cecell/plugin-shell-extension
+gh attestation verify PluginShellExtension-<version>-setup.exe --repo cecell/plugin-shell-extension
 ```
+
+0.90 was built while the repository was still private, so it has no
+provenance attestation; its run log and artifact are public and carry the
+same SHA-256 values as the release.
 
 A local build does not reproduce the official hashes byte for byte (the linker
 stamps build times), so compare downloads against the published list.
