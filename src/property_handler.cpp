@@ -19,7 +19,7 @@ namespace {
 
 constexpr DWORD kPids[] = {kPidHeaderVersion, kPidRecordCount, kPidFlags, kPidLight,
                            kPidMasterCount,   kPidDeletedCount, kPidEslable, kPidMasters, kPidEslNote,
-                           kPidFormVersion, kPidDeletedNavm};
+                           kPidFormVersion, kPidDeletedNavm, kPidFormCount};
 
 // The two values that need the full record walk, cached per process so a
 // folder refresh does not rescan every plugin. Keyed by file name, size and
@@ -28,6 +28,7 @@ struct ScanSummary {
     bool ok = false;
     uint64_t deleted = 0;
     uint64_t deletedNavm = 0;
+    uint64_t newRecords = 0;
     std::wstring eslable;
     bool needsNewerGame = false;
 };
@@ -130,6 +131,10 @@ public:
                 const ScanSummary& s = Scan();
                 return s.ok && s.deletedNavm ? InitPropVariantFromUInt32(static_cast<ULONG>(s.deletedNavm), pv) : S_OK;
             }
+            case kPidFormCount: {
+                const ScanSummary& s = Scan();
+                return s.ok ? InitPropVariantFromUInt32(static_cast<ULONG>(s.newRecords), pv) : S_OK;
+            }
             case kPidEslNote:
                 if (header_.light) return S_OK;
                 return Scan().needsNewerGame ? InitPropVariantFromString(kNeedsNewerGameText, pv) : S_OK;
@@ -169,6 +174,7 @@ private:
         summary_.ok = scan.ok;
         summary_.deleted = scan.totalDeleted;
         summary_.deletedNavm = scan.deletedNavm;
+        summary_.newRecords = scan.newRecords;
         EslStatus esl = ClassifyEsl(header_, scan);
         summary_.eslable = EslStatusText(esl, true);
         summary_.needsNewerGame = EslNeedsNewerGame(header_, scan, esl);
