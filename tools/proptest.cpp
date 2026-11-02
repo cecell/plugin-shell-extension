@@ -32,6 +32,7 @@ const wchar_t* PidName(DWORD pid) {
         case pse::kPidDeletedNavm: return L"Del NAVM";
         case pse::kPidFormCount: return L"#Forms";
         case pse::kPidItm: return L"#ITM";
+        case pse::kPidDirty: return L"Dirty";
     }
     return L"?";
 }

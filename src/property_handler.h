@@ -19,7 +19,7 @@ enum PluginPid : DWORD {
     kPidFlags = 4,          // String  "ESM, ESL, Localized"
     kPidLight = 5,          // String  True / False
     kPidMasterCount = 6,    // UInt32
-    kPidDeletedCount = 7,   // UInt32  deleted REFR/ACHR/P***/NAVM, empty when 0 (full scan)
+    kPidDeletedCount = 7,   // UInt32  deleted REFR/ACHR/P*** (not NAVM: see 12), empty when 0 (full scan)
     kPidEslable = 8,        // String  Already / True / Save in CK / False / Corrupted (full scan)
     kPidMasters = 9,        // String vector, shown "a; b; c"
     kPidEslNote = 10,       // String  "Requires v1.6.1130 or later" when it applies (full scan)
@@ -27,6 +27,7 @@ enum PluginPid : DWORD {
     kPidDeletedNavm = 12,   // UInt32  deleted NAVM records, empty when 0 (full scan)
     kPidFormCount = 13,     // UInt32  records new to this plugin, the ESL-limited count (full scan)
     kPidItm = 14,           // String  ITM record count, "MissingMaster", empty when 0 (reads the masters)
+    kPidDirty = 15,         // String  True / False (#Deleted or #ITM non-zero), "Working", "MissingMaster"
 };
 
 HRESULT CreatePropertyHandlerFactory(REFIID riid, void** ppv);
