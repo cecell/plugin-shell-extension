@@ -17,6 +17,8 @@
 #include <mutex>
 
 #include "debug_log.h"
+#include "embedded_patterns.h"
+#include "itm.h"
 #include "plugin_parser.h"
 
 extern HINSTANCE g_hInst;
@@ -24,7 +26,7 @@ extern HINSTANCE g_hInst;
 namespace pse {
 namespace {
 
-constexpr UINT WM_APP_SCANDONE = WM_APP + 1;
+constexpr UINT WM_APP_SCANDONE = WM_APP + 1;  // also sent when the ITM check finishes
 constexpr int IDC_TAB = 100;
 constexpr int IDC_LIST = 101;
 constexpr int IDM_COPY_VALUE = 1;
@@ -773,6 +775,8 @@ struct ScanSlot {
     std::mutex lock;
     bool done = false;
     GroupScan result;
+    bool itmDone = false;  // the ITM check runs after the scan, on the same thread
+    ItmResult itm;
 };
 
 struct ScanJob {
@@ -790,6 +794,15 @@ DWORD WINAPI ScanThread(void* param) {
         std::lock_guard<std::mutex> g(job->slot->lock);
         job->slot->result = std::move(scan);
         job->slot->done = true;
+    }
+    PostMessageW(job->hwnd, WM_APP_SCANDONE, 0, 0);
+    ItmResult itm;
+    if (const PatternCatalog* cat = EmbeddedPatterns()) itm = FindItms(job->path, *cat);
+    else itm.error = "patterns missing";
+    {
+        std::lock_guard<std::mutex> g(job->slot->lock);
+        job->slot->itm = std::move(itm);
+        job->slot->itmDone = true;
     }
     PostMessageW(job->hwnd, WM_APP_SCANDONE, 0, 0);
     HMODULE module = job->module;
@@ -848,6 +861,8 @@ private:
     std::shared_ptr<ScanSlot> slot_ = std::make_shared<ScanSlot>();
     bool scanDone_ = false;
     GroupScan scan_;
+    bool itmDone_ = false;
+    ItmResult itm_;
     Palette palette_ = CurrentPalette();
     HBRUSH windowBrush_ = nullptr;
 
@@ -1028,6 +1043,18 @@ private:
             row(L"Deleted forms", deleted);
             row(L"Deleted Navmeshes", scanDone_ ? (scan_.ok || scan_.deletedNavm ? std::to_wstring(scan_.deletedNavm) : L"")
                                        : L"Counting…");
+            // Identical To Master records, as xEdit's Quick Auto Clean finds
+            // them (the plugin and its masters, from the plugin's folder).
+            if (!itmDone_) {
+                row(L"ITM records", L"Checking…");
+            } else if (!itm_.missingMasters.empty()) {
+                row(L"ITM records", L"MissingMaster");
+                std::wstring tip = L"Masters not found next to the plugin are marked X:";
+                for (const auto& m : MarkMissingMasters(path_, header_.masters)) tip += L"\r\n" + m;
+                rows.back().tip = tip;
+            } else {
+                row(L"ITM records", itm_.ok ? GroupDigits(static_cast<uint32_t>(itm_.itms.size())) : L"");
+            }
             if (!header_.error.empty()) row(L"Warning", header_.error);
         }
 
@@ -1055,6 +1082,7 @@ private:
             std::lock_guard<std::mutex> g(slot_->lock);
             if (header_.ok) slot_->result.error = L"Could not start the GRUP scan.";
             slot_->done = true;
+            slot_->itmDone = true;
         }
         PostMessageW(hwnd_, WM_APP_SCANDONE, 0, 0);
     }
@@ -1116,10 +1144,17 @@ private:
         wchar_t info[256];
         swprintf_s(info, L"dpi=%u window=%dx%d client=%dx%d", dpi_, w, h, static_cast<int>(cr.right),
                    static_cast<int>(cr.bottom));
+        // Then every row (name, value, hover text), including the ones
+        // scrolled out of the picture.
+        std::wstring text = info;
+        for (const auto& r : BuildRows()) {
+            text += L"\r\n" + r.name + L"\t" + r.value;
+            if (!r.tip.empty()) text += L"\t[tip] " + r.tip;
+        }
         HANDLE f = CreateFileW((snapshot_ + L".txt").c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
         if (f != INVALID_HANDLE_VALUE) {
             DWORD written = 0;
-            WriteFile(f, info, static_cast<DWORD>(wcslen(info) * sizeof(wchar_t)), &written, nullptr);
+            WriteFile(f, text.data(), static_cast<DWORD>(text.size() * sizeof(wchar_t)), &written, nullptr);
             CloseHandle(f);
         }
         if (frame) frame->Release();
@@ -1129,15 +1164,20 @@ private:
         DeleteObject(dib);
     }
 
+    // Called twice: once the record scan is done, and again after the ITM check.
     void OnScanDone() {
         {
             std::lock_guard<std::mutex> g(slot_->lock);
             if (!slot_->done) return;
-            scan_ = std::move(slot_->result);
+            if (!scanDone_) scan_ = std::move(slot_->result);
+            if (slot_->itmDone && !itmDone_) {
+                itm_ = std::move(slot_->itm);
+                itmDone_ = true;
+            }
         }
         scanDone_ = true;
         PropertyList::From(list_)->SetRows(BuildRows());
-        if (!snapshot_.empty()) {
+        if (!snapshot_.empty() && itmDone_) {
             // PSE_TEST_HIGHLIGHT=1: capture with row 2 selected and
             // row 4 hovered, to check the highlight colours.
             if (GetEnvironmentVariableW(L"PSE_TEST_HIGHLIGHT", nullptr, 0) > 0)

@@ -26,6 +26,7 @@ enum PluginPid : DWORD {
     kPidFormVersion = 11,   // UInt32  TES4 header form version (44 SE, 43 LE)
     kPidDeletedNavm = 12,   // UInt32  deleted NAVM records, empty when 0 (full scan)
     kPidFormCount = 13,     // UInt32  records new to this plugin, the ESL-limited count (full scan)
+    kPidItm = 14,           // String  ITM record count, "MissingMaster", empty when 0 (reads the masters)
 };
 
 HRESULT CreatePropertyHandlerFactory(REFIID riid, void** ppv);

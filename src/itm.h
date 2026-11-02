@@ -30,6 +30,9 @@ struct ItmResult {
 // Masters are looked up in the plugin's own folder.
 ItmResult FindItms(const std::wstring& pluginPath, const PatternCatalog& catalog);
 
+// Test hook: look for masters in this folder instead of next to the plugin.
+void SetItmMastersFolder(const std::wstring& folder);
+
 // Debug aid: why a single override is or is not ITM (one line per finding).
 std::vector<std::string> ExplainItm(const std::wstring& pluginPath, const PatternCatalog& catalog, uint32_t formId);
 

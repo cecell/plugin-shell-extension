@@ -33,6 +33,7 @@ Requires Windows 10 or 11, 64-bit.
 | Record types | each top-level group with its record count, alphabetical: `CELL (2943), STAT (11), ...`. A group's count includes everything nested in it, so `CELL` includes its placed references and `DIAL` its `INFO`s |
 | Deleted forms | deleted placed objects and navmeshes by type, `REFR (93), NAVM (5)`, or "None". These are the types xEdit's Quick Auto Clean deals with (`REFR`, `ACHR`, `PGRE`, `PMIS`, `PARW`, `PBAR`, `PBEA`, `PCON`, `PFLA`, `PHZD`) plus `NAVM` |
 | Deleted Navmeshes | how many of the deleted forms are navmeshes (`NAVM`); xEdit cannot undelete these |
+| ITM records | how many records are Identical To Master, counted the way xEdit's Quick Auto Clean does: against the plugin's masters only, which must be in the same folder. **MissingMaster** when one is not there; the row's hover text lists the masters with an X in front of each missing one |
 | Size, Created, Modified, Attributes | formatted exactly as Windows' own Details tab shows them |
 
 The header fields appear at once. Form count, record types, the deleted counts and ESLable need
@@ -78,6 +79,7 @@ tooltip** (on by default) makes these fields available in Explorer:
 | #Masters | number of masters |
 | #Deleted | the Deleted forms total, a hint that the plugin may need cleaning; blank when there are none |
 | Del NAVM | how many of those are deleted navmeshes; blank when there are none |
+| #ITM | the ITM record count; blank when there are none, **MissingMaster** when a master is not in the same folder |
 | ESLable | Already, True, Save in CK, False or Corrupted, as above |
 
 Turn the columns on in Details view: right-click a column header > **More...**.
@@ -86,13 +88,16 @@ Turn the columns on in Details view: right-click a column header > **More...**.
 
 The details pane (Alt+Shift+P) shows all of them plus the masters, and the
 tooltip when hovering a plugin shows #Records, the masters and, when it
-applies, the ESLable note.
+applies, the ESLable note. A master that is not in the plugin's folder is
+shown with an X in front of it. No tooltip at all? Turn on **Show pop-up
+description for folder and desktop items** in File Explorer Options > View.
 
 <img src="docs/details-pane.png" alt="Details pane" width="320">
 
 
 #Forms, #Deleted, Del NAVM and ESLable fill in after the other columns, because they need the
-pass over every record. Results are remembered per Explorer session, so
+pass over every record. #ITM comes last: it also reads the masters
+(about a second for most plugins, a few seconds for very large ones). Results are remembered per Explorer session, so
 refreshing a folder does not scan the plugins again.
 
 Windows only accepts these properties registered for the whole machine, so
@@ -217,6 +222,8 @@ Debugging switches:
 ### Source layout
 
 - `src/plugin_parser.*`: reads the plugin header and walks the groups (bounds-checked; reads files or Explorer's streams)
+- `src/pattern_engine.*`, `src/pattern_value.*`, `src/inflate.*`: decode subrecords into fields from `data/itm_patterns.json` (embedded in the DLL)
+- `src/itm.*`, `src/itm_ctda.inc`: the ITM check, following xEdit's comparison rules (the condition-function table is generated from xEdit's source by `tools/gen_ctda_params.py`)
 - `src/property_window.*`: the window and its Property/Value list (custom, because a ListView cannot give rows different heights)
 - `src/context_menu.*`: the right-click menu handler
 - `src/property_handler.*`: the Explorer property handler behind the columns, details pane and tooltip
@@ -225,5 +232,5 @@ Debugging switches:
 - `installer/PluginShellExtension.iss`: the Inno Setup installer
 - `installer/PluginShellExtension.propdesc`: the property schema (names, labels, types, alignment)
 - `installer/icon/`: the installer icon and its source image
-- `tools/`: `plugininfo`, `menutest`, `proptest`
+- `tools/`: `plugininfo`, `menutest`, `proptest`, `itmcheck` (lists a plugin's ITMs, or explains one FormID), `patterndump` + `patterncheck.py` (checks the decoder against a reference database)
 - `.github/workflows/build.yml`: the official build

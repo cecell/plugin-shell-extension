@@ -2,7 +2,10 @@
 //
 // Lists the plugin's ITM records (xEdit Quick Auto Clean rules: the plugin
 // and its masters only). With FormIDs (hex, as stored in the plugin), explains
-// for each one why it is or is not ITM.
+// for each one why it is or is not ITM. Set PSE_MASTERS to a folder to take the
+// masters from there (for plugins kept away from them, e.g. xEdit backups).
+#include <windows.h>
+
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -26,6 +29,8 @@ int wmain(int argc, wchar_t** argv) {
         fprintf(stderr, "patterns: %s\n", err.c_str());
         return 2;
     }
+    wchar_t masters[MAX_PATH];
+    if (GetEnvironmentVariableW(L"PSE_MASTERS", masters, MAX_PATH)) SetItmMastersFolder(masters);
     if (argc > 3) {
         for (int i = 3; i < argc; ++i) {
             uint32_t fid = static_cast<uint32_t>(wcstoul(argv[i], nullptr, 16));
