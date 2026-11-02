@@ -79,7 +79,7 @@ tooltip** (on by default) makes these fields available in Explorer:
 | #Masters | number of masters |
 | #Deleted | the Deleted forms total, a hint that the plugin may need cleaning; blank when there are none |
 | Del NAVM | how many of those are deleted navmeshes; blank when there are none |
-| #ITM | the ITM record count; blank when there are none, **MissingMaster** when a master is not in the same folder |
+| #ITM | the ITM record count; blank when there are none, **MissingMaster** when a master is not in the same folder, **Working** while the check runs |
 | ESLable | Already, True, Save in CK, False or Corrupted, as above |
 
 Turn the columns on in Details view: right-click a column header > **More...**.
@@ -96,8 +96,10 @@ description for folder and desktop items** in File Explorer Options > View.
 
 
 #Forms, #Deleted, Del NAVM and ESLable fill in after the other columns, because they need the
-pass over every record. #ITM comes last: it also reads the masters
-(about a second for most plugins, a few seconds for very large ones). Results are remembered per Explorer session, so
+pass over every record. #ITM also reads the masters, so it says **Working**
+while one low-priority background thread checks the plugins one at a time
+(well under a second for most, a few seconds for very large ones), and fills
+in as each finishes. After cleaning a plugin or one of its masters, press F5. Results are remembered per Explorer session, so
 refreshing a folder does not scan the plugins again.
 
 Windows only accepts these properties registered for the whole machine, so
