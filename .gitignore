@@ -1,3 +1,7 @@
 build/
 build-*/
 ci-build/
+# Local session notes (machine-specific paths/tools)
+POST_COMPACT_RESUME.md
+BACKLOG.md
+LESSONS_LEARNED.md
