@@ -700,6 +700,16 @@ std::shared_ptr<const PluginFile> LoadMaster(const std::wstring& path, const std
             }
         }
     }
+    // One load at a time: several checks starting together would otherwise
+    // all index Skyrim.esm at once. A waiting check then finds it cached.
+    static std::mutex loading;
+    std::lock_guard<std::mutex> l(loading);
+    {
+        std::lock_guard<std::mutex> g(lock);
+        for (const auto& c : cache) {
+            if (c.first == key) return c.second;
+        }
+    }
     auto mf = std::make_shared<PluginFile>();
     mf->name = name;
     std::string e;
