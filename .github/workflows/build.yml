@@ -2,23 +2,25 @@
 # SHA-256 hashes, and attaches signed build provenance, so a downloaded
 # installer can be traced back to this commit and this workflow run.
 #
-#   push / pull request / manual run -> build + "PluginShellExtension" artifact
-#   push a tag like v0.90            -> also a GitHub Release with the files
+#   push to main / pull request / manual run -> build + "PluginShellExtension" artifact
+#
+# Releases are not built from tags. A release publishes the artifact of an
+# earlier run unchanged, so the released files are byte for byte the ones
+# that run hashed (and that were scanned): rebuilding would change the hashes.
 #
 # Verify a download:  gh attestation verify <file> --repo cecell/plugin-shell-extension
-# (provenance needs a public repository; the SHA-256 list is always produced.)
+# (for runs since the repository became public; the SHA-256 list is always produced.)
 
 name: Build
 
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: write       # create the release on tags
+  contents: read
   id-token: write       # sign the build provenance
   attestations: write
 
@@ -85,12 +87,3 @@ jobs:
           name: PluginShellExtension
           path: dist/
           if-no-files-found: error
-
-      - name: Release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist -File).FullName `
-            --title "Plugin Shell Extension $($env:GITHUB_REF_NAME.TrimStart('v'))" --generate-notes
