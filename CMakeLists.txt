@@ -29,6 +29,7 @@ add_library(PluginShellExtension SHARED
     src/property_window.cpp
     src/property_handler.cpp
     src/embedded_patterns.cpp
+    src/disk_cache.cpp
     src/PluginShellExtension.def
     src/PluginShellExtension.rc
     src/PluginShellExtension.manifest)
