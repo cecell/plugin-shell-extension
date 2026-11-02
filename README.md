@@ -77,9 +77,10 @@ tooltip** (on by default) makes these fields available in Explorer:
 | Flags | `ESM, ESL, Localized` |
 | Is Light | True / False |
 | #Masters | number of masters |
-| #Deleted | the Deleted forms total, a hint that the plugin may need cleaning; blank when there are none |
+| #Deleted | deleted placed objects (`REFR`, `ACHR`, `PGRE`, ...), not navmeshes (see Del NAVM), a hint that the plugin may need cleaning; blank when there are none |
 | Del NAVM | how many of those are deleted navmeshes; blank when there are none |
 | #ITM | the ITM record count; blank when there are none, **MissingMaster** when a master is not in the same folder, **Working** while the check runs |
+| Dirty | **True** when #Deleted or #ITM is not zero, otherwise **False**; **Working** until #ITM is known (unless #Deleted already decides it), **MissingMaster** when it cannot be known |
 | ESLable | Already, True, Save in CK, False or Corrupted, as above |
 
 Turn the columns on in Details view: right-click a column header > **More...**.
@@ -101,7 +102,9 @@ while low-priority background threads check the plugins, smallest first,
 and fills in as each finishes. All of these results are saved in
 `%LOCALAPPDATA%\Plugin Shell Extension\cache.txt`, so they come back
 instantly after a restart; a plugin is checked again only when it or one of
-its masters changes. After cleaning a plugin or one of its masters, press F5.
+its masters changes. Explorer watches the folder, so after a plugin or one
+of its masters is cleaned or updated, the affected rows check again by
+themselves.
 
 How many plugins #ITM checks at once is set in
 `%LOCALAPPDATA%\Plugin Shell Extension\settings.json` (`"itmThreads"`). `0`,

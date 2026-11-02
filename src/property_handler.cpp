@@ -12,9 +12,11 @@
 #include <string>
 #include <set>
 #include <tuple>
+#include <memory>
 #include <vector>
 
 #include "context_menu.h"
+#include "debug_log.h"
 #include "disk_cache.h"
 #include "embedded_patterns.h"
 #include "itm.h"
@@ -25,7 +27,7 @@ namespace {
 
 constexpr DWORD kPids[] = {kPidHeaderVersion, kPidRecordCount, kPidFlags, kPidLight,
                            kPidMasterCount,   kPidDeletedCount, kPidEslable, kPidMasters, kPidEslNote,
-                           kPidFormVersion, kPidDeletedNavm, kPidFormCount, kPidItm};
+                           kPidFormVersion, kPidDeletedNavm, kPidFormCount, kPidItm, kPidDirty};
 
 // The two values that need the full record walk, cached per process so a
 // folder refresh does not rescan every plugin. Keyed by file name, size and
@@ -183,6 +185,93 @@ bool QueueItm(const std::wstring& path, const std::wstring& key, uint64_t size) 
     return false;
 }
 
+// Watchdog: when a master changes (cleaned, updated), the plugins Explorer has
+// shown that list it get refreshed, so their #ITM / Dirty are checked again
+// without F5. One watcher thread per folder; it lives as long as Explorer.
+std::mutex g_watchLock;
+std::map<std::wstring, std::set<std::wstring>> g_dependents;  // lower master path -> plugin paths
+std::set<std::wstring> g_watchedDirs;                          // lower folder paths
+
+bool IsPluginName(const std::wstring& name) {
+    size_t dot = name.find_last_of(L'.');
+    if (dot == std::wstring::npos) return false;
+    std::wstring ext = LowerPath(name.substr(dot));
+    return ext == L".esp" || ext == L".esm" || ext == L".esl";
+}
+
+DWORD WINAPI WatchThread(void* param) {
+    std::unique_ptr<std::wstring> dir(static_cast<std::wstring*>(param));
+    SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
+    HANDLE h = CreateFileW(dir->c_str(), FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return 0;
+    HANDLE ev = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    std::vector<uint8_t> buf(64 * 1024);
+    std::set<std::wstring> changed;  // lower paths, waiting for the save to settle
+    bool overflow = false;
+    for (;;) {
+        OVERLAPPED ov{};
+        ov.hEvent = ev;
+        ResetEvent(ev);
+        if (!ReadDirectoryChangesW(h, buf.data(), static_cast<DWORD>(buf.size()), FALSE,
+                                   FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE |
+                                       FILE_NOTIFY_CHANGE_SIZE,
+                                   nullptr, &ov, nullptr)) {
+            break;
+        }
+        // Wait for changes; once some came in, 1.5 s of quiet means the save
+        // (xEdit writes a temporary file, then renames it) is finished.
+        bool quiet = false;
+        while (WaitForSingleObject(ev, changed.empty() && !overflow ? INFINITE : 1500) == WAIT_TIMEOUT) {
+            quiet = true;
+            std::vector<std::wstring> refresh;
+            {
+                std::lock_guard<std::mutex> g(g_watchLock);
+                for (const auto& [master, deps] : g_dependents) {
+                    if (overflow || changed.count(master)) refresh.insert(refresh.end(), deps.begin(), deps.end());
+                }
+            }
+            changed.clear();
+            overflow = false;
+            for (const auto& p : refresh) {
+                DebugLog(L"watchdog: master changed, refreshing %s", p.c_str());
+                SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, p.c_str(), nullptr);
+            }
+        }
+        (void)quiet;
+        DWORD bytes = 0;
+        if (!GetOverlappedResult(h, &ov, &bytes, FALSE)) break;
+        if (bytes == 0) {  // too many changes to list: refresh everything known
+            overflow = true;
+            continue;
+        }
+        for (DWORD off = 0;;) {
+            auto* fni = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(buf.data() + off);
+            std::wstring name(fni->FileName, fni->FileNameLength / sizeof(wchar_t));
+            if (IsPluginName(name)) changed.insert(LowerPath(*dir + name));
+            if (!fni->NextEntryOffset) break;
+            off += fni->NextEntryOffset;
+        }
+    }
+    CloseHandle(ev);
+    CloseHandle(h);
+    return 0;
+}
+
+// Remembers which masters `path` depends on and watches their folder.
+void WatchForMasterChanges(const std::wstring& path, const std::vector<std::wstring>& masters) {
+    if (masters.empty()) return;
+    std::wstring dir = path.substr(0, path.find_last_of(L"\\/") + 1);
+    std::lock_guard<std::mutex> g(g_watchLock);
+    for (const auto& m : masters) g_dependents[LowerPath(dir + m)].insert(path);
+    if (!g_watchedDirs.insert(LowerPath(dir)).second) return;
+    // The watcher keeps the DLL loaded for the rest of Explorer's life.
+    HMODULE module = nullptr;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+                       reinterpret_cast<LPCWSTR>(&WatchThread), &module);
+    if (HANDLE t = CreateThread(nullptr, 0, &WatchThread, new std::wstring(dir), 0, nullptr)) CloseHandle(t);
+}
+
 // Only Explorer gets "Working"; anything else (the search indexer) waits for
 // the real value, so a placeholder never gets stored.
 bool InExplorer() {
@@ -282,15 +371,9 @@ public:
             case kPidItm: {
                 // "MissingMaster" at once; "Working" while the check runs;
                 // then the count, blank when there are none (like #Deleted).
-                std::wstring itmKey = ItmKey(path_, header_.masters);
-                if (itmKey.empty()) return InitPropVariantFromString(L"MissingMaster", pv);
                 ItmSummary s;
-                if (!CachedItm(itmKey, &s)) {
-                    if (InExplorer() && QueueItm(path_, itmKey, std::get<1>(key_)))
-                        return InitPropVariantFromString(L"Working", pv);
-                    s = ComputeItm(path_);
-                    StoreItm(itmKey, s);
-                }
+                std::wstring state = ItmValue(&s);
+                if (!state.empty()) return InitPropVariantFromString(state.c_str(), pv);
                 return s.ok && s.count ? InitPropVariantFromString(std::to_wstring(s.count).c_str(), pv) : S_OK;
             }
             case kPidEslable:
@@ -311,9 +394,23 @@ public:
                 if (header_.light) return S_OK;
                 return Scan().needsNewerGame ? InitPropVariantFromString(kNeedsNewerGameText, pv) : S_OK;
             case kPidDeletedCount: {
-                // Blank rather than 0, so plugins that need cleaning stand out.
+                // Placed objects only (navmeshes have Del NAVM). Blank rather
+                // than 0, so plugins that need cleaning stand out.
                 const ScanSummary& s = Scan();
-                return s.ok && s.deleted ? InitPropVariantFromUInt32(static_cast<ULONG>(s.deleted), pv) : S_OK;
+                uint64_t n = s.deleted - s.deletedNavm;
+                return s.ok && n ? InitPropVariantFromUInt32(static_cast<ULONG>(n), pv) : S_OK;
+            }
+            case kPidDirty: {
+                // True when #Deleted or #ITM is not zero. #Deleted alone can
+                // settle it; otherwise it waits for the ITM check like #ITM.
+                const ScanSummary& sc = Scan();
+                if (!sc.ok) return S_OK;
+                if (sc.deleted > sc.deletedNavm) return InitPropVariantFromString(L"True", pv);
+                ItmSummary s;
+                std::wstring state = ItmValue(&s);
+                if (!state.empty()) return InitPropVariantFromString(state.c_str(), pv);  // Working / MissingMaster
+                if (!s.ok) return S_OK;
+                return InitPropVariantFromString(s.count ? L"True" : L"False", pv);
             }
         }
         return S_OK;
@@ -326,6 +423,19 @@ public:
 
 private:
     ~PropertyHandler() { InterlockedDecrement(&g_dllRefs); }
+
+    // The ITM result into *s and an empty string, or "MissingMaster" /
+    // "Working" while there is no result (#ITM and Dirty share this).
+    std::wstring ItmValue(ItmSummary* s) {
+        std::wstring itmKey = ItmKey(path_, header_.masters);
+        if (itmKey.empty()) return L"MissingMaster";
+        if (InExplorer()) WatchForMasterChanges(path_, header_.masters);
+        if (CachedItm(itmKey, s)) return L"";
+        if (InExplorer() && QueueItm(path_, itmKey, std::get<1>(key_))) return L"Working";
+        *s = ComputeItm(path_);
+        StoreItm(itmKey, *s);
+        return L"";
+    }
 
     const ScanSummary& Scan() {
         std::lock_guard<std::mutex> g(lock_);
