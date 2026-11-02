@@ -34,6 +34,20 @@ add_library(PluginShellExtension SHARED
 target_link_libraries(PluginShellExtension PRIVATE psecore comctl32 uxtheme shell32 ole32 oleaut32 propsys
     windowscodecs shlwapi dwmapi)
 
+# Subrecord pattern engine (ITM work in progress; not linked into the DLL yet).
+add_library(psepattern STATIC
+    src/pattern_value.cpp
+    src/pattern_engine.cpp
+    src/inflate.cpp
+    src/itm.cpp)
+target_include_directories(psepattern PUBLIC src)
+
+add_executable(itmcheck tools/itmcheck.cpp)
+target_link_libraries(itmcheck PRIVATE psepattern)
+
+add_executable(patterndump tools/patterndump.cpp)
+target_link_libraries(patterndump PRIVATE psepattern)
+
 add_executable(plugininfo tools/plugininfo.cpp)
 target_link_libraries(plugininfo PRIVATE psecore)
 
