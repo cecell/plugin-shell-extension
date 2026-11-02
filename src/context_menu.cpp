@@ -15,14 +15,14 @@
 #include "property_window.h"
 #include "registration.h"
 
-namespace pp {
+namespace pse {
 
 volatile long g_dllRefs = 0;
 
 namespace {
 
-constexpr wchar_t kVerbW[] = L"pluginproperties";
-constexpr char kVerbA[] = "pluginproperties";
+constexpr wchar_t kVerbW[] = L"pluginshellextension";
+constexpr char kVerbA[] = "pluginshellextension";
 constexpr wchar_t kMenuText[] = L"Plugin properties";
 constexpr wchar_t kHelpText[] = L"Shows the header, masters and record groups of this plugin.";
 constexpr size_t kMaxWindows = 16;
@@ -197,4 +197,4 @@ HRESULT CreateClassFactory(REFIID riid, void** ppv) {
     return hr;
 }
 
-}  // namespace pp
+}  // namespace pse

@@ -1,7 +1,7 @@
 @echo off
 rem Builds Release x64 with the MSVC 14.44 (v143) toolset.
-rem Output: build\bin\PluginProperties.dll and, when Inno Setup 6 is installed,
-rem build\PluginProperties-<version>-setup.exe.
+rem Output: build\bin\PluginShellExtension.dll and, when Inno Setup 6 is installed,
+rem build\PluginShellExtension-<version>-setup.exe.
 setlocal
 call "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat" -vcvars_ver=14.44 >nul
 if errorlevel 1 exit /b 1

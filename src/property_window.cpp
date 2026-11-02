@@ -21,7 +21,7 @@
 
 extern HINSTANCE g_hInst;
 
-namespace pp {
+namespace pse {
 namespace {
 
 constexpr UINT WM_APP_SCANDONE = WM_APP + 1;
@@ -29,8 +29,8 @@ constexpr int IDC_TAB = 100;
 constexpr int IDC_LIST = 101;
 constexpr int IDM_COPY_VALUE = 1;
 constexpr int IDM_COPY_ALL = 2;
-constexpr wchar_t kDialogClass[] = L"PluginPropertiesDialog";
-constexpr wchar_t kListClass[] = L"PluginPropertiesList";
+constexpr wchar_t kDialogClass[] = L"PluginShellExtensionDialog";
+constexpr wchar_t kListClass[] = L"PluginShellExtensionList";
 constexpr wchar_t kNbsp = L' ';
 
 // Layout of the Explorer Properties dialog's Details tab, in pixels at 96 DPI
@@ -69,10 +69,10 @@ bool HighContrastOn() {
 }
 
 // Follows Settings > Personalization > Colors > "Choose your app mode".
-// PLUGINPROPS_THEME=dark|light overrides it (for testing).
+// PSE_THEME=dark|light overrides it (for testing).
 bool AppsUseDarkTheme() {
     wchar_t forced[16] = {};
-    if (GetEnvironmentVariableW(L"PLUGINPROPS_THEME", forced, ARRAYSIZE(forced))) return _wcsicmp(forced, L"dark") == 0;
+    if (GetEnvironmentVariableW(L"PSE_THEME", forced, ARRAYSIZE(forced))) return _wcsicmp(forced, L"dark") == 0;
     DWORD light = 1, size = sizeof(light);
     RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
                  L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &light, &size);
@@ -1129,9 +1129,9 @@ private:
         scanDone_ = true;
         PropertyList::From(list_)->SetRows(BuildRows());
         if (!snapshot_.empty()) {
-            // PLUGINPROPS_TEST_HIGHLIGHT=1: capture with row 2 selected and
+            // PSE_TEST_HIGHLIGHT=1: capture with row 2 selected and
             // row 4 hovered, to check the highlight colours.
-            if (GetEnvironmentVariableW(L"PLUGINPROPS_TEST_HIGHLIGHT", nullptr, 0) > 0)
+            if (GetEnvironmentVariableW(L"PSE_TEST_HIGHLIGHT", nullptr, 0) > 0)
                 PropertyList::From(list_)->TestHighlight(2, 4);
             Snapshot();
             DestroyWindow(hwnd_);
@@ -1302,9 +1302,9 @@ int RunPropertyWindow(const std::wstring& path, const std::wstring& snapshotPng,
     {
         ActivationContext actctx;
         // Per-monitor DPI aware: laid out for each monitor's scale and re-laid
-        // out when moved between monitors. PLUGINPROPS_DPI_UNAWARE renders the
+        // out when moved between monitors. PSE_DPI_UNAWARE renders the
         // 100% layout instead (for testing).
-        bool unaware = GetEnvironmentVariableW(L"PLUGINPROPS_DPI_UNAWARE", nullptr, 0) > 0;
+        bool unaware = GetEnvironmentVariableW(L"PSE_DPI_UNAWARE", nullptr, 0) > 0;
         DPI_AWARENESS_CONTEXT oldDpi = SetThreadDpiAwarenessContext(
             unaware ? DPI_AWARENESS_CONTEXT_UNAWARE : DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         INITCOMMONCONTROLSEX icc{sizeof(icc), ICC_TAB_CLASSES | ICC_LISTVIEW_CLASSES | ICC_STANDARD_CLASSES};
@@ -1366,4 +1366,4 @@ void ShowPropertyWindowsAsync(const std::vector<std::wstring>& paths) {
     }
 }
 
-}  // namespace pp
+}  // namespace pse

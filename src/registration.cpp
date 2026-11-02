@@ -4,7 +4,7 @@
 #include <shlobj.h>
 #include <shlwapi.h>
 
-namespace pp {
+namespace pse {
 namespace {
 
 const wchar_t kClasses[] = L"Software\\Classes\\";
@@ -90,7 +90,7 @@ HRESULT RegisterPropertyHandler(const std::wstring& dllPath, const std::wstring&
     // CLSID in HKLM as well: the Windows Search indexer runs without this
     // user's HKCU and also loads property handlers.
     std::wstring clsidKey = std::wstring(kClasses) + L"CLSID\\" + kPropertyHandlerClsidString;
-    LSTATUS st = SetString(HKEY_LOCAL_MACHINE, clsidKey, nullptr, L"Plugin Properties property handler");
+    LSTATUS st = SetString(HKEY_LOCAL_MACHINE, clsidKey, nullptr, L"Plugin Shell Extension property handler");
     if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, clsidKey + L"\\InprocServer32", nullptr, dllPath);
     if (st == ERROR_SUCCESS)
         st = SetString(HKEY_LOCAL_MACHINE, clsidKey + L"\\InprocServer32", L"ThreadingModel", L"Both");
@@ -125,4 +125,4 @@ HRESULT UnregisterPropertyHandler(const std::wstring& schemaPath) {
     return S_OK;
 }
 
-}  // namespace pp
+}  // namespace pse

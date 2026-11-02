@@ -1,15 +1,15 @@
-; Inno Setup (6.6 or newer) script for the Plugin Properties shell extension.
+; Inno Setup (6.6 or newer) script for the Plugin Shell Extension shell extension.
 ; Built by CMake (target "installer"); can also be compiled by hand:
-;   ISCC.exe /DAppVersion=1.0.0 /DBinDir=..\build\bin /DOutDir=..\build installer\PluginProperties.iss
+;   ISCC.exe /DAppVersion=0.90 /DBinDir=..\build\bin /DOutDir=..\build installer\PluginShellExtension.iss
 ;
-; Installs per user (no admin prompt) into %LOCALAPPDATA%\Programs\Plugin Properties
+; Installs per user (no admin prompt) into %LOCALAPPDATA%\Programs\Plugin Shell Extension
 ; and registers the context-menu handler under HKCU\Software\Classes. The
 ; optional "columns" task additionally registers the property handler and its
 ; schema machine-wide, which Windows only accepts from an elevated process: it
 ; runs "regsvr32 /n /i:columns" through a UAC prompt.
 
 #ifndef AppVersion
-  #define AppVersion "1.0.0"
+  #define AppVersion "0.90"
 #endif
 #ifndef BinDir
   #define BinDir "..\build\bin"
@@ -18,18 +18,18 @@
   #define OutDir "..\build"
 #endif
 
-#define AppName "Plugin Properties"
+#define AppName "Plugin Shell Extension"
 #define Clsid "{{1D4348E0-3A45-489E-8022-6A2A883E9D94}"
 #define ClsidKey "Software\Classes\CLSID\" + Clsid
 #define Sfa "Software\Classes\SystemFileAssociations"
 #define PropHandlerClsid "{E0BA20B2-0391-45F5-80C3-07E306E945E9}"
-#define P "Cecell.PluginProperties."
+#define P "Cecell.PluginShellExtension."
 ; Details pane (Alt+Shift+P) and hover tooltip contents.
 #define PreviewDetails "prop:" + P + "HeaderVersion;" + P + "RecordCount;" + P + "Flags;" + P + "Light;" + P + "MasterCount;" + P + "DeletedCount;" + P + "ESLable;" + P + "ESLNote;" + P + "Masters;*System.DateModified;*System.Size;*System.DateCreated"
 #define InfoTip "prop:System.ItemTypeText;System.Size;System.DateModified;" + P + "RecordCount;" + P + "Masters;" + P + "ESLNote"
 
 [Setup]
-AppId={{27A531A2-EEF9-4E30-BDE9-3295D03F4D3E}
+AppId={{F78B36DB-E7CD-4FA3-B923-5643F4FD3ADB}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
@@ -55,8 +55,10 @@ ChangesAssociations=yes
 ; asking the user to close Explorer.
 CloseApplications=no
 OutputDir={#OutDir}
-OutputBaseFilename=PluginProperties-{#AppVersion}-setup
+OutputBaseFilename=PluginShellExtension-{#AppVersion}-setup
 UninstallDisplayName={#AppName}
+SetupIconFile=icon\PluginShellExtension.ico
+UninstallDisplayIcon={app}\PluginShellExtension.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -68,15 +70,14 @@ FinishedLabelNoIcons=Setup has finished installing [name] on your computer.%n%nR
 Name: "columns"; Description: "  Add columns to Explorer, the details pane and files tooltip (requires admin rights)"
 
 [Files]
-Source: "{#BinDir}\PluginProperties.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "PluginProperties.propdesc"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BinDir}\PluginShellExtension.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "PluginShellExtension.propdesc"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\docs\screenshot.png"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "icon\PluginShellExtension.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
-; Left behind by the pre-Inno setup program.
-Type: files; Name: "{app}\Setup.exe"
 Type: files; Name: "{app}\*.old"
 
 [UninstallDelete]
@@ -84,23 +85,23 @@ Type: files; Name: "{app}\*.old"
 
 [Registry]
 ; COM server
-Root: HKA; Subkey: "{#ClsidKey}"; ValueType: string; ValueData: "Plugin Properties context menu"; Flags: uninsdeletekey
-Root: HKA; Subkey: "{#ClsidKey}\InprocServer32"; ValueType: string; ValueData: "{app}\PluginProperties.dll"
+Root: HKA; Subkey: "{#ClsidKey}"; ValueType: string; ValueData: "Plugin Shell Extension context menu"; Flags: uninsdeletekey
+Root: HKA; Subkey: "{#ClsidKey}\InprocServer32"; ValueType: string; ValueData: "{app}\PluginShellExtension.dll"
 Root: HKA; Subkey: "{#ClsidKey}\InprocServer32"; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"
 ; Context-menu handler for each plugin extension. The parent keys are removed
 ; on uninstall only if nothing else lives in them.
 Root: HKA; Subkey: "{#Sfa}\.esp"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esp\shellex"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esp\shellex\ContextMenuHandlers"; Flags: uninsdeletekeyifempty
-Root: HKA; Subkey: "{#Sfa}\.esp\shellex\ContextMenuHandlers\PluginProperties"; ValueType: string; ValueData: "{#Clsid}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "{#Sfa}\.esp\shellex\ContextMenuHandlers\PluginShellExtension"; ValueType: string; ValueData: "{#Clsid}"; Flags: uninsdeletekey
 Root: HKA; Subkey: "{#Sfa}\.esm"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esm\shellex"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esm\shellex\ContextMenuHandlers"; Flags: uninsdeletekeyifempty
-Root: HKA; Subkey: "{#Sfa}\.esm\shellex\ContextMenuHandlers\PluginProperties"; ValueType: string; ValueData: "{#Clsid}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "{#Sfa}\.esm\shellex\ContextMenuHandlers\PluginShellExtension"; ValueType: string; ValueData: "{#Clsid}"; Flags: uninsdeletekey
 Root: HKA; Subkey: "{#Sfa}\.esl"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esl\shellex"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esl\shellex\ContextMenuHandlers"; Flags: uninsdeletekeyifempty
-Root: HKA; Subkey: "{#Sfa}\.esl\shellex\ContextMenuHandlers\PluginProperties"; ValueType: string; ValueData: "{#Clsid}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "{#Sfa}\.esl\shellex\ContextMenuHandlers\PluginShellExtension"; ValueType: string; ValueData: "{#Clsid}"; Flags: uninsdeletekey
 ; Details pane and tooltip fields (per user; the properties themselves come
 ; from the machine-wide handler the columns task registers).
 Root: HKA; Subkey: "{#Sfa}\.esp"; ValueType: string; ValueName: "PreviewDetails"; ValueData: "{#PreviewDetails}"; Flags: uninsdeletevalue; Tasks: columns
@@ -109,13 +110,17 @@ Root: HKA; Subkey: "{#Sfa}\.esm"; ValueType: string; ValueName: "PreviewDetails"
 Root: HKA; Subkey: "{#Sfa}\.esm"; ValueType: string; ValueName: "InfoTip"; ValueData: "{#InfoTip}"; Flags: uninsdeletevalue; Tasks: columns
 Root: HKA; Subkey: "{#Sfa}\.esl"; ValueType: string; ValueName: "PreviewDetails"; ValueData: "{#PreviewDetails}"; Flags: uninsdeletevalue; Tasks: columns
 Root: HKA; Subkey: "{#Sfa}\.esl"; ValueType: string; ValueName: "InfoTip"; ValueData: "{#InfoTip}"; Flags: uninsdeletevalue; Tasks: columns
-; Uninstall entry written by the pre-Inno setup program.
-Root: HKA; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\PluginProperties"; Flags: deletekey dontcreatekey
 
 [Run]
 Filename: "{app}\README.md"; Description: "Open the README"; Flags: postinstall shellexec skipifsilent nowait
 
 [Code]
+// Before 0.90 this extension shipped under another name and AppId, using the
+// same COM and registry keys. Installing over it would let its uninstaller
+// later remove keys this version needs, so it has to be uninstalled first.
+const
+  OldUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{27A531A2-EEF9-4E30-BDE9-3295D03F4D3E}_is1';
+
 var
   LicenseCheck: TNewCheckBox;
   AiNotice, InnoCredit: TNewStaticText;
@@ -152,12 +157,26 @@ end;
 procedure AddTasksPageText;
 begin
   WizardForm.TasksList.Height := ScaleY(56);
-  AiNotice := AddPageText('Plugin Properties was written with the assistance of Claude by Anthropic. ' +
+  AiNotice := AddPageText('Plugin Shell Extension was written with the assistance of Claude by Anthropic. ' +
     'Many have negative feelings towards AI but it has been a life saver for people like me who struggle ' +
     'with cognitive disabilities. I hope this software is helpful.');
   AiNotice.Top := WizardForm.TasksList.Top + WizardForm.TasksList.Height + ScaleY(16);
   InnoCredit := AddPageText('Uses Inno Setup, Copyright (C) Jordan Russell, https://jrsoftware.org/');
   InnoCredit.Top := WizardForm.SelectTasksPage.Height - InnoCredit.Height;
+end;
+
+function InitializeSetup: Boolean;
+var
+  OldName: String;
+begin
+  Result := True;
+  if RegQueryStringValue(HKCU, OldUninstallKey, 'DisplayName', OldName) or
+     RegQueryStringValue(HKLM, OldUninstallKey, 'DisplayName', OldName) then begin
+    SuppressibleMsgBox('An earlier version of this extension is installed as "' + OldName + '".' + #13#10#13#10 +
+      'Uninstall it from Settings > Apps > Installed apps, restart Explorer, then run this setup again.',
+      mbError, MB_OK, IDOK);
+    Result := False;
+  end;
 end;
 
 procedure InitializeWizard;
@@ -194,7 +213,7 @@ begin
     Exit;
   if DeleteFile(Path) then
     Exit;
-  Target := AddBackslash(Dir) + 'PluginProperties.' + GetDateTimeString('yyyymmddhhnnsszzz', #0, #0) + '.old';
+  Target := AddBackslash(Dir) + 'PluginShellExtension.' + GetDateTimeString('yyyymmddhhnnsszzz', #0, #0) + '.old';
   if not RenameFile(Path, Target) then
     Log('Could not move aside ' + Path);
 end;
@@ -216,7 +235,7 @@ var
   Params: String;
   Code: Integer;
 begin
-  Params := '/s /n /i:columns "' + ExpandConstant('{app}\PluginProperties.dll') + '"';
+  Params := '/s /n /i:columns "' + ExpandConstant('{app}\PluginShellExtension.dll') + '"';
   if not Install then
     Params := '/u ' + Params;
   Result := ShellExec('runas', ExpandConstant('{sys}\regsvr32.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, Code)
@@ -227,7 +246,7 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then
-    MoveAside(ExpandConstant('{app}\PluginProperties.dll'), ExpandConstant('{app}'));
+    MoveAside(ExpandConstant('{app}\PluginShellExtension.dll'), ExpandConstant('{app}'));
   if CurStep = ssPostInstall then begin
     if WizardIsTaskSelected('columns') then begin
       if not RunColumnsRegistration(True) then
@@ -247,6 +266,6 @@ begin
       RunColumnsRegistration(False);
     // Moved to %TEMP% (same volume in the usual case) so the program folder
     // can be removed even while Explorer still holds the DLL.
-    MoveAside(ExpandConstant('{app}\PluginProperties.dll'), GetTempDir);
+    MoveAside(ExpandConstant('{app}\PluginShellExtension.dll'), GetTempDir);
   end;
 end;

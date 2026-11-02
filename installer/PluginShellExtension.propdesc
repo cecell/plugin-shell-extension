@@ -1,69 +1,69 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Shell property schema for the Plugin Properties property handler
+  Shell property schema for the Plugin Shell Extension property handler
   (src/property_handler.h). formatID and propIDs must match kPluginFmtid and
   the PluginPid values there. Registered by "regsvr32 /n /i:columns" (admin).
 -->
 <schema xmlns="http://schemas.microsoft.com/windows/2006/propertydescription" schemaVersion="1.0">
-  <propertyDescriptionList publisher="Cecell" product="PluginProperties">
+  <propertyDescriptionList publisher="Cecell" product="PluginShellExtension">
 
-    <propertyDescription name="Cecell.PluginProperties.HeaderVersion" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="2">
+    <propertyDescription name="Cecell.PluginShellExtension.HeaderVersion" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="2">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="16"/>
       <labelInfo label="Header Ver"/>
       <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
       <displayInfo displayType="String" defaultColumnWidth="8" alignment="Right"/>
     </propertyDescription>
 
-    <propertyDescription name="Cecell.PluginProperties.RecordCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="3">
+    <propertyDescription name="Cecell.PluginShellExtension.RecordCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="3">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
       <labelInfo label="#Records"/>
       <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
       <displayInfo displayType="Number" defaultColumnWidth="9" alignment="Right"/>
     </propertyDescription>
 
-    <propertyDescription name="Cecell.PluginProperties.Flags" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="4">
+    <propertyDescription name="Cecell.PluginShellExtension.Flags" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="4">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="64"/>
       <labelInfo label="Flags"/>
       <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
       <displayInfo displayType="String" defaultColumnWidth="16"/>
     </propertyDescription>
 
-    <propertyDescription name="Cecell.PluginProperties.Light" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="5">
+    <propertyDescription name="Cecell.PluginShellExtension.Light" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="5">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="16"/>
       <labelInfo label="Is Light"/>
       <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
       <displayInfo displayType="String" defaultColumnWidth="7" alignment="Center"/>
     </propertyDescription>
 
-    <propertyDescription name="Cecell.PluginProperties.MasterCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="6">
+    <propertyDescription name="Cecell.PluginShellExtension.MasterCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="6">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
       <labelInfo label="#Masters"/>
       <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
       <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
     </propertyDescription>
 
-    <propertyDescription name="Cecell.PluginProperties.DeletedCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="7">
+    <propertyDescription name="Cecell.PluginShellExtension.DeletedCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="7">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
       <labelInfo label="#Deleted"/>
       <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
       <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
     </propertyDescription>
 
-    <propertyDescription name="Cecell.PluginProperties.ESLable" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="8">
+    <propertyDescription name="Cecell.PluginShellExtension.ESLable" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="8">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="32"/>
       <labelInfo label="ESLable"/>
       <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
       <displayInfo displayType="String" defaultColumnWidth="12"/>
     </propertyDescription>
 
-    <propertyDescription name="Cecell.PluginProperties.Masters" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="9">
+    <propertyDescription name="Cecell.PluginShellExtension.Masters" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="9">
       <searchInfo inInvertedIndex="true" isColumn="true" columnIndexType="OnDiskVector" maxSize="4096"/>
       <labelInfo label="Masters"/>
       <typeInfo type="String" multipleValues="true" isInnate="true" isViewable="true" isQueryable="true"/>
       <displayInfo displayType="String" defaultColumnWidth="40"/>
     </propertyDescription>
 
-    <propertyDescription name="Cecell.PluginProperties.ESLNote" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="10">
+    <propertyDescription name="Cecell.PluginShellExtension.ESLNote" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="10">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="64"/>
       <labelInfo label="ESLable note"/>
       <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>

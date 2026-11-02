@@ -7,7 +7,7 @@
 #include <cstring>
 #include <cwchar>
 
-namespace pp {
+namespace pse {
 namespace {
 
 uint16_t U16(const uint8_t* p) { return static_cast<uint16_t>(p[0] | (p[1] << 8)); }
@@ -583,4 +583,4 @@ GroupScan ScanGroups(IStream* stream, const PluginHeader& header) {
     return scan;
 }
 
-}  // namespace pp
+}  // namespace pse
