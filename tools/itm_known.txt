@@ -1,0 +1,56 @@
+# Known ITM records (from the user's xEdit, 2026-11-02), for testing the ITM
+# logic. FormIDs are LOAD-ORDER IDs from the user's setup (the high byte /
+# FE xxx prefix is their load order), so map them through plugins.txt first.
+
+[unofficial skyrim special edition patch.esp]
+0009C8C2
+000DB0C9
+000ED161
+000F6844
+02015D88
+00000F7E
+0001C789
+
+[Gray Fox Cowl.esm]
+04028347
+
+[Audio Overhaul Skyrim.esp]
+000C5B6B
+000C5D0A
+000E3261
+000FF495
+000876BB
+0009F254
+000170CE
+000170CF
+0004D2BB
+00059E5C
+00059E5D
+00084783
+000960E8
+
+[BladeAndBlunt.esp]
+01ADA511
+01ADA514
+01ADA509
+01ADA510
+65137ADF
+
+[OCW_ICNs_OE_FEPatch.esp]
+FE0DA803
+FE0DA819
+FE0DA81A
+FE0DA81B
+FE0DA81C
+FE0DA81D
+FE0DA81E
+FE0DA81F
+FE0DA835
+FE0DA836
+FE0DA87B
+FE0DA87C
+FE0DA898
+FE0DA8A1
+FE0DA8A8
+FE0DA8B0
+FE0DA8B3
