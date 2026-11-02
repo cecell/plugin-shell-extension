@@ -97,9 +97,15 @@ description for folder and desktop items** in File Explorer Options > View.
 
 #Forms, #Deleted, Del NAVM and ESLable fill in after the other columns, because they need the
 pass over every record. #ITM also reads the masters, so it says **Working**
-while one low-priority background thread checks the plugins one at a time
-(well under a second for most, a few seconds for very large ones), and fills
-in as each finishes. After cleaning a plugin or one of its masters, press F5. Results are remembered per Explorer session, so
+while low-priority background threads check the plugins, smallest first,
+and fills in as each finishes. All of these results are saved in
+`%LOCALAPPDATA%\Plugin Shell Extension\cache.txt`, so they come back
+instantly after a restart; a plugin is checked again only when it or one of
+its masters changes. After cleaning a plugin or one of its masters, press F5.
+
+How many plugins #ITM checks at once is set in
+`%LOCALAPPDATA%\Plugin Shell Extension\settings.json` (`"itmThreads"`). `0`,
+the default, means half the CPU cores, from 1 to 8. Press F5 after changing it. Results are remembered per Explorer session, so
 refreshing a folder does not scan the plugins again.
 
 Windows only accepts these properties registered for the whole machine, so

@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "pattern_value.h"
+
 namespace pse {
 namespace {
 
@@ -125,7 +127,72 @@ void Load() {
     }
 }
 
+int PhysicalCores() {
+    DWORD len = 0;
+    GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &len);
+    std::vector<uint8_t> buf(len);
+    auto* info = reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*>(buf.data());
+    if (!len || !GetLogicalProcessorInformationEx(RelationProcessorCore, info, &len)) return 1;
+    int cores = 0;
+    for (DWORD off = 0; off < len;) {
+        auto* e = reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*>(buf.data() + off);
+        if (e->Relationship == RelationProcessorCore) ++cores;
+        off += e->Size;
+    }
+    return cores ? cores : 1;
+}
+
+const char kDefaultSettings[] =
+    "{\n"
+    "  \"itmThreads\": 0,\n"
+    "  \"_itmThreads\": \"How many plugins the #ITM column checks at once. 0 = automatic: half the CPU cores, "
+    "from 1 to 8. Press F5 in Explorer after changing it.\"\n"
+    "}\n";
+
 }  // namespace
+
+int ItmThreadCount() {
+    static std::mutex lock;
+    static uint64_t seenStamp = ~0ull;
+    static int setting = 0;
+    std::lock_guard<std::mutex> g(lock);
+    std::wstring dir = CacheDir();
+    if (!dir.empty()) {
+        std::wstring path = dir + L"\\settings.json";
+        WIN32_FILE_ATTRIBUTE_DATA fa{};
+        if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &fa)) {
+            CreateDirectoryW(dir.c_str(), nullptr);
+            HANDLE f = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, 0, nullptr);
+            if (f != INVALID_HANDLE_VALUE) {
+                WriteAll(f, kDefaultSettings);
+                CloseHandle(f);
+            }
+            setting = 0;
+        } else {
+            uint64_t stamp = (static_cast<uint64_t>(fa.ftLastWriteTime.dwHighDateTime) << 32) |
+                             fa.ftLastWriteTime.dwLowDateTime ^ fa.nFileSizeLow;
+            if (stamp != seenStamp) {  // changed (or first look): read it again
+                seenStamp = stamp;
+                setting = 0;
+                HANDLE f = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                       OPEN_EXISTING, 0, nullptr);
+                if (f != INVALID_HANDLE_VALUE) {
+                    char text[4096] = {};
+                    DWORD got = 0;
+                    ReadFile(f, text, sizeof(text) - 1, &got, nullptr);
+                    CloseHandle(f);
+                    Value root;
+                    int64_t n = 0;
+                    if (ParseJson(std::string_view(text, got), &root, nullptr) && root.kind() == Value::Kind::Map) {
+                        if (const Value* v = root.Find("itmThreads"); v && v->ToInt(&n)) setting = static_cast<int>(n);
+                    }
+                }
+            }
+        }
+    }
+    if (setting > 0) return std::min(setting, 64);
+    return std::clamp(PhysicalCores() / 2, 1, 8);
+}
 
 bool DiskCacheGet(const std::wstring& key, std::wstring* value) {
     std::lock_guard<std::mutex> g(g_lock);

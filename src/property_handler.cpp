@@ -45,18 +45,20 @@ std::map<ScanKey, ScanSummary> g_cache;
 constexpr size_t kCacheLimit = 50000;
 
 // The ITM check is slower still (it reads the masters). In Explorer it runs
-// on one background worker: the column says "Working" until the result is
-// cached, then Explorer is told the file changed and asks again. Results are
-// keyed by the plugin's and every master's size and write time, so cleaning
-// a master refreshes its dependents too (on the next F5).
+// on a few background workers (ItmThreadCount, from settings.json), smallest
+// plugin first so most values appear quickly: the column says "Working" until
+// the result is cached, then Explorer is told the file changed and asks
+// again. Results are keyed by the plugin's and every master's size and write
+// time, so cleaning a master refreshes its dependents too (on the next F5).
 struct ItmSummary {
     bool ok = false;
     size_t count = 0;
 };
 std::map<std::wstring, ItmSummary> g_itmCache;
-std::deque<std::pair<std::wstring, std::wstring>> g_itmQueue;  // (path, key)
+std::multimap<uint64_t, std::pair<std::wstring, std::wstring>> g_itmQueue;  // size -> (path, key)
 std::set<std::wstring> g_itmPending;
-bool g_itmWorkerRunning = false;
+int g_itmWorkers = 0;      // running
+int g_itmWorkersWanted = 1;
 
 // "size:writetime", or empty when the file is not there.
 std::wstring FileStamp(const std::wstring& path) {
@@ -126,16 +128,20 @@ DWORD WINAPI ItmWorker(void* module) {
     // Background mode lowers this thread's CPU, disk and memory priority, so
     // a folder full of plugins never makes Explorer itself sluggish.
     SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
+    // Explorer asks about a whole folder in one burst; wait for it to queue
+    // so the first pick really is the smallest plugin.
+    Sleep(250);
     for (;;) {
         std::pair<std::wstring, std::wstring> job;
         {
             std::lock_guard<std::mutex> c(g_cacheLock);
-            if (g_itmQueue.empty()) {
-                g_itmWorkerRunning = false;
+            // Stop when the queue is empty, or when the setting was lowered.
+            if (g_itmQueue.empty() || g_itmWorkers > g_itmWorkersWanted) {
+                --g_itmWorkers;
                 break;
             }
-            job = std::move(g_itmQueue.front());
-            g_itmQueue.pop_front();
+            job = std::move(g_itmQueue.begin()->second);  // the smallest plugin
+            g_itmQueue.erase(g_itmQueue.begin());
         }
         StoreItm(job.second, ComputeItm(job.first));
         {
@@ -148,23 +154,33 @@ DWORD WINAPI ItmWorker(void* module) {
     FreeLibraryAndExitThread(static_cast<HMODULE>(module), 0);
 }
 
-// Queues the check; returns false if no worker could be started.
-bool QueueItm(const std::wstring& path, const std::wstring& key) {
+// Queues the check and starts workers up to the setting; returns false if no
+// worker is running and none could be started.
+bool QueueItm(const std::wstring& path, const std::wstring& key, uint64_t size) {
+    int wanted = ItmThreadCount();  // reads settings.json when it changed
     std::lock_guard<std::mutex> c(g_cacheLock);
-    if (g_itmPending.insert(key).second) g_itmQueue.emplace_back(path, key);
-    if (g_itmWorkerRunning) return true;
-    HMODULE module = nullptr;  // the worker keeps the DLL loaded until it is done
-    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&ItmWorker), &module);
-    HANDLE t = CreateThread(nullptr, 0, &ItmWorker, module, 0, nullptr);
-    if (!t) {
-        FreeLibrary(module);
-        g_itmPending.erase(key);
-        g_itmQueue.pop_back();
-        return false;
+    g_itmWorkersWanted = wanted;
+    if (g_itmPending.insert(key).second) g_itmQueue.emplace(size, std::make_pair(path, key));
+    while (g_itmWorkers < g_itmWorkersWanted && g_itmWorkers < static_cast<int>(g_itmQueue.size())) {
+        HMODULE module = nullptr;  // each worker keeps the DLL loaded until it is done
+        GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&ItmWorker), &module);
+        HANDLE t = CreateThread(nullptr, 0, &ItmWorker, module, 0, nullptr);
+        if (!t) {
+            FreeLibrary(module);
+            break;
+        }
+        CloseHandle(t);
+        ++g_itmWorkers;
     }
-    CloseHandle(t);
-    g_itmWorkerRunning = true;
-    return true;
+    if (g_itmWorkers > 0) return true;
+    g_itmPending.erase(key);
+    for (auto it = g_itmQueue.begin(); it != g_itmQueue.end(); ++it) {
+        if (it->second.second == key) {
+            g_itmQueue.erase(it);
+            break;
+        }
+    }
+    return false;
 }
 
 // Only Explorer gets "Working"; anything else (the search indexer) waits for
@@ -270,7 +286,8 @@ public:
                 if (itmKey.empty()) return InitPropVariantFromString(L"MissingMaster", pv);
                 ItmSummary s;
                 if (!CachedItm(itmKey, &s)) {
-                    if (InExplorer() && QueueItm(path_, itmKey)) return InitPropVariantFromString(L"Working", pv);
+                    if (InExplorer() && QueueItm(path_, itmKey, std::get<1>(key_)))
+                        return InitPropVariantFromString(L"Working", pv);
                     s = ComputeItm(path_);
                     StoreItm(itmKey, s);
                 }

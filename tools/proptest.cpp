@@ -55,6 +55,14 @@ int wmain(int argc, wchar_t** argv) {
         return 2;
     }
     int failures = 0;
+    // PSE_ASYNC_TEST: take the Explorer path ("Working" + background check):
+    // ask about every file, wait for the workers, then ask again.
+    bool async = GetEnvironmentVariableW(L"PSE_ASYNC_TEST", nullptr, 0) > 0;
+    for (int pass = 0; pass < (async ? 2 : 1); ++pass) {
+    if (pass) {
+        wprintf(L"-- second pass --\n");
+        Sleep(20000);
+    }
     for (int i = 2; i < argc; ++i) {
         wprintf(L"== %s\n", argv[i]);
         IInitializeWithFile* init = nullptr;
@@ -86,8 +94,7 @@ int wmain(int argc, wchar_t** argv) {
         }
         if (store) store->Release();
         if (init) init->Release();
-        // PSE_ASYNC_TEST: give the background ITM check time before the next file.
-        if (GetEnvironmentVariableW(L"PSE_ASYNC_TEST", nullptr, 0) > 0) Sleep(6000);
+    }
     }
     factory->Release();
     CoUninitialize();
