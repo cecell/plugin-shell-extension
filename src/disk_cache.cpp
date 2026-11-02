@@ -146,7 +146,7 @@ const char kDefaultSettings[] =
     "{\n"
     "  \"itmThreads\": 0,\n"
     "  \"_itmThreads\": \"How many plugins the #ITM column checks at once. 0 = automatic: half the CPU cores, "
-    "from 1 to 8. Press F5 in Explorer after changing it.\"\n"
+    "from 1 to 6. Press F5 in Explorer after changing it.\"\n"
     "}\n";
 
 }  // namespace
@@ -191,7 +191,7 @@ int ItmThreadCount() {
         }
     }
     if (setting > 0) return std::min(setting, 64);
-    return std::clamp(PhysicalCores() / 2, 1, 8);
+    return std::clamp(PhysicalCores() / 2, 1, 6);
 }
 
 bool DiskCacheGet(const std::wstring& key, std::wstring* value) {

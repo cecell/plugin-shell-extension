@@ -21,7 +21,7 @@ void DiskCachePut(const std::wstring& key, const std::wstring& value);
 
 // How many plugins the #ITM column checks at once: "itmThreads" in
 // %LOCALAPPDATA%\Plugin Shell Extension\settings.json, re-read whenever the
-// file changes; 0 or no file = half the physical cores, between 1 and 8. The
+// file changes; 0 or no file = half the physical cores, between 1 and 6. The
 // file is created with the automatic value the first time.
 int ItmThreadCount();
 

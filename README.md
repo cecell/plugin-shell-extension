@@ -105,8 +105,7 @@ its masters changes. After cleaning a plugin or one of its masters, press F5.
 
 How many plugins #ITM checks at once is set in
 `%LOCALAPPDATA%\Plugin Shell Extension\settings.json` (`"itmThreads"`). `0`,
-the default, means half the CPU cores, from 1 to 8. Press F5 after changing it. Results are remembered per Explorer session, so
-refreshing a folder does not scan the plugins again.
+the default, means half the CPU cores, from 1 to 6. Press F5 after changing it.
 
 Windows only accepts these properties registered for the whole machine, so
 this option asks for administrator rights once. The rest of the extension is
