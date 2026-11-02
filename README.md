@@ -75,9 +75,15 @@ tooltip** (on by default) makes these fields available in Explorer:
 | ESLable | Already, True, Save in CK, False or Corrupted, as above |
 
 Turn the columns on in Details view: right-click a column header > **More...**.
+
+![Explorer columns](docs/explorer-columns.png)
+
 The details pane (Alt+Shift+P) shows all of them plus the masters, and the
 tooltip when hovering a plugin shows #Records, the masters and, when it
 applies, the ESLable note.
+
+<img src="docs/details-pane.png" alt="Details pane" width="320">
+
 
 #Deleted and ESLable fill in after the other columns, because they need the
 pass over every record. Results are remembered per Explorer session, so
