@@ -24,6 +24,7 @@ int wmain(int argc, wchar_t** argv) {
         }
         if (!h.error.empty()) wprintf(L"warning: %s\n", h.error.c_str());
         wprintf(L"Header version: %s\n", h.hasHedr ? pse::VersionText(h.version).c_str() : L"");
+        wprintf(L"Form version: %u\n", h.formVersion);
         wprintf(L"Records: %d\n", h.numRecords);
         wprintf(L"Flags: %s (0x%X)\n", pse::FlagsText(h.flags).c_str(), h.flags);
         wprintf(L"Light: %s\n", h.light ? L"True" : L"False");

@@ -70,5 +70,19 @@
       <displayInfo displayType="String" defaultColumnWidth="24"/>
     </propertyDescription>
 
+    <propertyDescription name="Cecell.PluginShellExtension.FormVersion" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="11">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Form Ver"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.DeletedNavmeshes" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="12">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Del NAVM"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
+    </propertyDescription>
+
   </propertyDescriptionList>
 </schema>

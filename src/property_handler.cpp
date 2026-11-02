@@ -18,7 +18,8 @@ namespace pse {
 namespace {
 
 constexpr DWORD kPids[] = {kPidHeaderVersion, kPidRecordCount, kPidFlags, kPidLight,
-                           kPidMasterCount,   kPidDeletedCount, kPidEslable, kPidMasters, kPidEslNote};
+                           kPidMasterCount,   kPidDeletedCount, kPidEslable, kPidMasters, kPidEslNote,
+                           kPidFormVersion, kPidDeletedNavm};
 
 // The two values that need the full record walk, cached per process so a
 // folder refresh does not rescan every plugin. Keyed by file name, size and
@@ -26,6 +27,7 @@ constexpr DWORD kPids[] = {kPidHeaderVersion, kPidRecordCount, kPidFlags, kPidLi
 struct ScanSummary {
     bool ok = false;
     uint64_t deleted = 0;
+    uint64_t deletedNavm = 0;
     std::wstring eslable;
     bool needsNewerGame = false;
 };
@@ -122,6 +124,12 @@ public:
                 // Short form for the column; the dialog says "Already flagged".
                 if (header_.light) return InitPropVariantFromString(L"Already", pv);
                 return InitPropVariantFromString(Scan().eslable.c_str(), pv);
+            case kPidFormVersion:
+                return InitPropVariantFromUInt32(header_.formVersion, pv);
+            case kPidDeletedNavm: {
+                const ScanSummary& s = Scan();
+                return s.ok && s.deletedNavm ? InitPropVariantFromUInt32(static_cast<ULONG>(s.deletedNavm), pv) : S_OK;
+            }
             case kPidEslNote:
                 if (header_.light) return S_OK;
                 return Scan().needsNewerGame ? InitPropVariantFromString(kNeedsNewerGameText, pv) : S_OK;
@@ -160,6 +168,7 @@ private:
         GroupScan scan = ScanGroups(stream_, header_);
         summary_.ok = scan.ok;
         summary_.deleted = scan.totalDeleted;
+        summary_.deletedNavm = scan.deletedNavm;
         EslStatus esl = ClassifyEsl(header_, scan);
         summary_.eslable = EslStatusText(esl, true);
         summary_.needsNewerGame = EslNeedsNewerGame(header_, scan, esl);

@@ -978,6 +978,7 @@ private:
             row(L"Error", header_.error);
         } else {
             row(L"Header version", header_.hasHedr ? VersionText(header_.version) : L"");
+            row(L"Form version", std::to_wstring(header_.formVersion));
             row(L"Records", header_.hasHedr ? GroupDigits(static_cast<uint32_t>(header_.numRecords)) : L"");
             row(L"Flags", FlagsText(header_.flags));
             row(L"Light", header_.light ? L"True" : L"False");
@@ -1019,6 +1020,8 @@ private:
             }
             row(L"Record types", types);
             row(L"Deleted forms", deleted);
+            row(L"Deleted Navmeshes", scanDone_ ? (scan_.ok || scan_.deletedNavm ? std::to_wstring(scan_.deletedNavm) : L"")
+                                       : L"Counting…");
             if (!header_.error.empty()) row(L"Warning", header_.error);
         }
 

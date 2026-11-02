@@ -24,6 +24,7 @@ struct PluginHeader {
     int32_t numRecords = 0;    // HEDR int32 (records + GRUPs)
 
     uint32_t flags = 0;        // TES4 record flags
+    uint16_t formVersion = 0;  // TES4 record header form version: 44 = saved by an SE tool, 43 = LE
     bool light = false;        // .esl extension or ESL bit
 
     bool hasAuthor = false;
@@ -55,6 +56,7 @@ struct GroupScan {
     // Deleted flag): nonzero types only, alphabetical.
     std::vector<GroupCount> deleted;
     uint64_t totalDeleted = 0;
+    uint64_t deletedNavm = 0;  // the NAVM part of totalDeleted
 };
 
 PluginHeader ReadPluginHeader(const std::wstring& path);
