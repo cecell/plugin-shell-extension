@@ -979,7 +979,13 @@ private:
         } else {
             row(L"Header version", header_.hasHedr ? VersionText(header_.version) : L"");
             row(L"Form version", std::to_wstring(header_.formVersion));
-            row(L"Records", header_.hasHedr ? GroupDigits(static_cast<uint32_t>(header_.numRecords)) : L"");
+            // Form count needs the full record walk; Record count is the header's.
+            row(L"Form count", scanDone_ ? (scan_.ok ? GroupDigits(static_cast<uint32_t>(scan_.newRecords)) : L"")
+                                         : L"Counting…");
+            rows.back().tip = L"Forms original to this plugin. The actual number of forms that count against the ESL flag.";
+            row(L"Record count", header_.hasHedr ? GroupDigits(static_cast<uint32_t>(header_.numRecords)) : L"");
+            rows.back().tip = L"What is shown in the actual plugin header. Includes overrides of other plugin's records, "
+                              L"and injected records neither of which count against the ESL flag. See \"Form count\".";
             row(L"Flags", FlagsText(header_.flags));
             row(L"Light", header_.light ? L"True" : L"False");
             // A plugin that already loads as light needs no check; otherwise

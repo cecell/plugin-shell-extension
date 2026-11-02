@@ -84,5 +84,12 @@
       <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
     </propertyDescription>
 
+    <propertyDescription name="Cecell.PluginShellExtension.FormCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="13">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="#Forms"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="9" alignment="Right"/>
+    </propertyDescription>
+
   </propertyDescriptionList>
 </schema>

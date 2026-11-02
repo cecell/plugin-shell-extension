@@ -25,6 +25,7 @@ enum PluginPid : DWORD {
     kPidEslNote = 10,       // String  "Requires v1.6.1130 or later" when it applies (full scan)
     kPidFormVersion = 11,   // UInt32  TES4 header form version (44 SE, 43 LE)
     kPidDeletedNavm = 12,   // UInt32  deleted NAVM records, empty when 0 (full scan)
+    kPidFormCount = 13,     // UInt32  records new to this plugin, the ESL-limited count (full scan)
 };
 
 HRESULT CreatePropertyHandlerFactory(REFIID riid, void** ppv);

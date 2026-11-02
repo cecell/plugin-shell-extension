@@ -22,7 +22,8 @@ Requires Windows 10 or 11, 64-bit.
 |---|---|
 | Header version | the `HEDR` version, e.g. `1.70` or `1.71` |
 | Form version | the file header's form version: `44` means it was last saved by a Skyrim SE tool, `43` by an LE (Oldrim) tool |
-| Records | the `HEDR` record count (records plus groups, as the Creation Kit writes it) |
+| Form count | the forms original to this plugin: the number that counts against the ESL limit. Overrides of master records and injected records are not included |
+| Record count | the `HEDR` record count (records plus groups, as the Creation Kit writes it). It includes overrides and injected records, neither of which counts against the ESL limit |
 | Flags | the header flags that are set: `ESM`, `ESL`, `Localized` |
 | Light | True if the game loads the plugin as light (`.esl` file, or the ESL flag) |
 | ESLable | what it takes to make the plugin light, see [ESLable](#eslable) ("Already flagged" for light plugins) |
@@ -34,7 +35,7 @@ Requires Windows 10 or 11, 64-bit.
 | Deleted Navmeshes | how many of the deleted forms are navmeshes (`NAVM`); xEdit cannot undelete these |
 | Size, Created, Modified, Attributes | formatted exactly as Windows' own Details tab shows them |
 
-The header fields appear at once. Record types, the deleted counts and ESLable need
+The header fields appear at once. Form count, record types, the deleted counts and ESLable need
 a pass over every record, which runs in the background and fills in a moment
 later (Skyrim.esm, 250 MB, takes about a second).
 
@@ -70,6 +71,7 @@ tooltip** (on by default) makes these fields available in Explorer:
 |---|---|
 | Header Ver | the header version, e.g. `1.71` |
 | Form Ver | the file header's form version, `44` (SE) or `43` (LE) |
+| #Forms | the Form count: forms original to this plugin |
 | #Records | the header record count (sorts as a number) |
 | Flags | `ESM, ESL, Localized` |
 | Is Light | True / False |
@@ -89,7 +91,7 @@ applies, the ESLable note.
 <img src="docs/details-pane.png" alt="Details pane" width="320">
 
 
-#Deleted, Del NAVM and ESLable fill in after the other columns, because they need the
+#Forms, #Deleted, Del NAVM and ESLable fill in after the other columns, because they need the
 pass over every record. Results are remembered per Explorer session, so
 refreshing a folder does not scan the plugins again.
 
