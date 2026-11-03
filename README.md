@@ -185,6 +185,9 @@ full terms.
 The installer is built with [Inno Setup](https://jrsoftware.org/),
 Copyright (C) Jordan Russell.
 
+Localized strings packed in BSA archives (including LZ4-compressed ones) are
+read with [bsa-reader](https://github.com/cecell/bsa-reader) (GPL-3.0).
+
 Plugin Shell Extension was written with the assistance of Claude by Anthropic.
 Many have negative feelings towards AI but it has been a life saver for people
 like me who struggle with cognitive disabilities. I hope this software is
@@ -195,7 +198,9 @@ helpful.
 Requires Visual Studio with the MSVC 14.44 (v143) toolset; CMake and Ninja
 come with Visual Studio. The installer needs Inno Setup 6.6 or newer
 (`winget install JRSoftware.InnoSetup`); without it the build still produces
-the DLL.
+the DLL. The first configure downloads
+[bsa-reader](https://github.com/cecell/bsa-reader) from GitHub (pinned to the
+commit of its v0.1.0 tag in `CMakeLists.txt`), so it needs internet access.
 
 ```
 build.cmd
@@ -233,7 +238,7 @@ Debugging switches:
 
 - `src/plugin_parser.*`: reads the plugin header and walks the groups (bounds-checked; reads files or Explorer's streams)
 - `src/pattern_engine.*`, `src/pattern_value.*`, `src/inflate.*`: decode subrecords into fields from `data/itm_patterns.json` (embedded in the DLL)
-- `src/itm.*`, `src/itm_ctda.inc`: the ITM check, following xEdit's comparison rules (the condition-function table is generated from xEdit's source by `tools/gen_ctda_params.py`)
+- `src/itm.*`, `src/itm_ctda.inc`: the ITM check, following xEdit's comparison rules (the condition-function table is generated from xEdit's source by `tools/gen_ctda_params.py`); localized strings come from `Strings\`, the plugin's BSA or `Skyrim - Interface.bsa`, read with bsa-reader
 - `src/property_window.*`: the window and its Property/Value list (custom, because a ListView cannot give rows different heights)
 - `src/context_menu.*`: the right-click menu handler
 - `src/property_handler.*`: the Explorer property handler behind the columns, details pane and tooltip
