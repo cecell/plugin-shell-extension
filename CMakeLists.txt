@@ -13,13 +13,13 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 # bsa-reader (GPL-3.0, github.com/cecell/bsa-reader): BSA v103-105 with zlib
 # and LZ4, used to read localized strings packed in archives. Pinned to the
-# commit of tag v0.1.0; library changes go to that repo, then bump this pin.
+# commit of tag v0.1.1; library changes go to that repo, then bump this pin.
 # Fetched before the project-wide definitions below so it builds with its
 # own flags (it inherits only the static CRT above).
 include(FetchContent)
 FetchContent_Declare(bsa_reader
     GIT_REPOSITORY https://github.com/cecell/bsa-reader.git
-    GIT_TAG 6af53fbd3667a94d06c4b14e52fb7a44e63a2c22)  # v0.1.0
+    GIT_TAG bbff0cbc5cd04d39bb3b50c470c579669c027dbf)  # v0.1.1
 FetchContent_MakeAvailable(bsa_reader)
 
 add_compile_definitions(UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00

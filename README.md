@@ -200,7 +200,7 @@ come with Visual Studio. The installer needs Inno Setup 6.6 or newer
 (`winget install JRSoftware.InnoSetup`); without it the build still produces
 the DLL. The first configure downloads
 [bsa-reader](https://github.com/cecell/bsa-reader) from GitHub (pinned to the
-commit of its v0.1.0 tag in `CMakeLists.txt`), so it needs internet access.
+commit of its v0.1.1 tag in `CMakeLists.txt`), so it needs internet access.
 
 ```
 build.cmd
