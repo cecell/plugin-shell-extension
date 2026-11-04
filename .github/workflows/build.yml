@@ -10,6 +10,10 @@
 #
 # Verify a download:  gh attestation verify <file> --repo cecell/plugin-shell-extension
 # (for runs since the repository became public; the SHA-256 list is always produced.)
+#
+# After the upload, the DLL and the installer are submitted to VirusTotal
+# (secret VIRUSTOTAL_API_KEY) and the results go in the run summary and a
+# separate "virustotal-report" artifact. The scan never fails the build.
 
 name: Build
 
@@ -87,3 +91,51 @@ jobs:
           name: PluginShellExtension
           path: dist/
           if-no-files-found: error
+
+      - name: VirusTotal scan
+        if: ${{ github.event_name != 'pull_request' }}
+        continue-on-error: true
+        shell: pwsh
+        env:
+          VT_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: |
+          if (-not $env:VT_KEY) { "VirusTotal: no API key, skipped." >> $env:GITHUB_STEP_SUMMARY; exit 0 }
+          $headers = @{ 'x-apikey' = $env:VT_KEY.Trim() }
+          $api = 'https://www.virustotal.com/api/v3'
+          $files = Get-ChildItem dist -File | Where-Object { $_.Extension -in '.dll', '.exe' } | Sort-Object Name
+          $scans = foreach ($f in $files) {
+            $id = (Invoke-RestMethod -Method Post "$api/files" -Headers $headers -Form @{ file = $f }).data.id
+            [pscustomobject]@{ File = $f.Name; Sha = (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower(); Id = $id; Analysis = $null }
+          }
+          # Wait for each analysis (up to 20 minutes in all).
+          $deadline = (Get-Date).AddMinutes(20)
+          while (($scans | Where-Object { -not $_.Analysis }) -and (Get-Date) -lt $deadline) {
+            Start-Sleep 30
+            foreach ($s in $scans | Where-Object { -not $_.Analysis }) {
+              $a = (Invoke-RestMethod "$api/analyses/$($s.Id)" -Headers $headers).data.attributes
+              if ($a.status -eq 'completed') { $s.Analysis = $a }
+            }
+          }
+          $md = @('## VirusTotal', '', '| File | Detections | Report |', '|---|---|---|')
+          $details = @()
+          foreach ($s in $scans) {
+            $link = "https://www.virustotal.com/gui/file/$($s.Sha)"
+            if (-not $s.Analysis) { $md += "| $($s.File) | still running | [report]($link) |"; continue }
+            $st = $s.Analysis.stats
+            $flagged = $st.malicious + $st.suspicious
+            $total = $st.malicious + $st.suspicious + $st.undetected + $st.harmless
+            $md += "| $($s.File) | **$flagged** / $total | [report]($link) |"
+            $hits = $s.Analysis.results.PSObject.Properties.Value | Where-Object { $_.category -in 'malicious', 'suspicious' }
+            foreach ($h in $hits | Sort-Object engine_name) { $details += "- $($s.File): $($h.engine_name): $($h.result) ($($h.category))" }
+          }
+          if ($details) { $md += '', '### Detections', '' ; $md += $details }
+          $md += '', "Commit: $env:GITHUB_SHA"
+          $md -join "`n" | Tee-Object -FilePath vt-report.md
+          $md -join "`n" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload VirusTotal report
+        if: ${{ github.event_name != 'pull_request' && hashFiles('vt-report.md') != '' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: virustotal-report
+          path: vt-report.md
