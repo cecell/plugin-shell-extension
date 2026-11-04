@@ -86,9 +86,9 @@
 
     <propertyDescription name="Cecell.PluginShellExtension.FormCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="13">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
-      <labelInfo label="#Forms"/>
+      <labelInfo label="#Master Forms"/>
       <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
-      <displayInfo displayType="Number" defaultColumnWidth="9" alignment="Right"/>
+      <displayInfo displayType="Number" defaultColumnWidth="13" alignment="Right"/>
     </propertyDescription>
 
     <propertyDescription name="Cecell.PluginShellExtension.Dirty" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="15">
@@ -104,6 +104,14 @@
       <labelInfo label="#ITM"/>
       <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
       <displayInfo displayType="String" defaultColumnWidth="7" alignment="Right"/>
+    </propertyDescription>
+
+    <!-- One hover-tooltip line, "Dirty: True    Is Light: False": no label, not a column. -->
+    <propertyDescription name="Cecell.PluginShellExtension.TipStatus" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="16">
+      <searchInfo inInvertedIndex="false" isColumn="false" maxSize="128"/>
+      <labelInfo label="Status" hideLabel="true"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="false"/>
+      <displayInfo displayType="String"/>
     </propertyDescription>
 
   </propertyDescriptionList>

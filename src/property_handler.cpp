@@ -27,7 +27,7 @@ namespace {
 
 constexpr DWORD kPids[] = {kPidHeaderVersion, kPidRecordCount, kPidFlags, kPidLight,
                            kPidMasterCount,   kPidDeletedCount, kPidEslable, kPidMasters, kPidEslNote,
-                           kPidFormVersion, kPidDeletedNavm, kPidFormCount, kPidItm, kPidDirty};
+                           kPidFormVersion, kPidDeletedNavm, kPidFormCount, kPidItm, kPidDirty, kPidTipStatus};
 
 // The two values that need the full record walk, cached per process so a
 // folder refresh does not rescan every plugin. Keyed by file name, size and
@@ -401,16 +401,16 @@ public:
                 return s.ok && n ? InitPropVariantFromUInt32(static_cast<ULONG>(n), pv) : S_OK;
             }
             case kPidDirty: {
-                // True when #Deleted or #ITM is not zero. #Deleted alone can
-                // settle it; otherwise it waits for the ITM check like #ITM.
-                const ScanSummary& sc = Scan();
-                if (!sc.ok) return S_OK;
-                if (sc.deleted > sc.deletedNavm) return InitPropVariantFromString(L"True", pv);
-                ItmSummary s;
-                std::wstring state = ItmValue(&s);
-                if (!state.empty()) return InitPropVariantFromString(state.c_str(), pv);  // Working / MissingMaster
-                if (!s.ok) return S_OK;
-                return InitPropVariantFromString(s.count ? L"True" : L"False", pv);
+                std::wstring dirty = DirtyText();
+                return dirty.empty() ? S_OK : InitPropVariantFromString(dirty.c_str(), pv);
+            }
+            case kPidTipStatus: {
+                // Two values on one tooltip line (the tooltip gives every
+                // property its own line).
+                std::wstring dirty = DirtyText();
+                std::wstring line = dirty.empty() ? L"" : L"Dirty: " + dirty + L"        ";
+                line += header_.light ? L"Is Light: True" : L"Is Light: False";
+                return InitPropVariantFromString(line.c_str(), pv);
             }
         }
         return S_OK;
@@ -423,6 +423,20 @@ public:
 
 private:
     ~PropertyHandler() { InterlockedDecrement(&g_dllRefs); }
+
+    // True when #Deleted or #ITM is not zero. #Deleted alone can settle it;
+    // otherwise it waits for the ITM check like #ITM ("Working" /
+    // "MissingMaster"). Empty when the plugin could not be scanned.
+    std::wstring DirtyText() {
+        const ScanSummary& sc = Scan();
+        if (!sc.ok) return L"";
+        if (sc.deleted > sc.deletedNavm) return L"True";
+        ItmSummary s;
+        std::wstring state = ItmValue(&s);
+        if (!state.empty()) return state;
+        if (!s.ok) return L"";
+        return s.count ? L"True" : L"False";
+    }
 
     // The ITM result into *s and an empty string, or "MissingMaster" /
     // "Working" while there is no result (#ITM and Dirty share this).

@@ -26,7 +26,7 @@
 #define P "Cecell.PluginShellExtension."
 ; Details pane (Alt+Shift+P) and hover tooltip contents.
 #define PreviewDetails "prop:" + P + "HeaderVersion;" + P + "FormVersion;" + P + "FormCount;" + P + "RecordCount;" + P + "Flags;" + P + "Light;" + P + "MasterCount;" + P + "DeletedCount;" + P + "DeletedNavmeshes;" + P + "ItmCount;" + P + "Dirty;" + P + "ESLable;" + P + "ESLNote;" + P + "Masters;*System.DateModified;*System.Size;*System.DateCreated"
-#define InfoTip "prop:System.ItemTypeText;System.Size;System.DateModified;" + P + "RecordCount;" + P + "Masters;" + P + "ESLNote"
+#define InfoTip "prop:System.ItemTypeText;System.Size;System.DateModified;" + P + "FormCount;" + P + "TipStatus;" + P + "Masters;" + P + "ESLNote"
 
 [Setup]
 AppId={{F78B36DB-E7CD-4FA3-B923-5643F4FD3ADB}

@@ -22,7 +22,7 @@ Requires Windows 10 or 11, 64-bit.
 |---|---|
 | Header version | the `HEDR` version, e.g. `1.70` or `1.71` |
 | Form version | the file header's form version: `44` means it was last saved by a Skyrim SE tool, `43` by an LE (Oldrim) tool |
-| Form count | the forms original to this plugin: the number that counts against the ESL limit. Overrides of master records and injected records are not included |
+| Master Form Count | the forms that belong to this plugin and for which it is the master: the number that counts against the ESL limit. Overrides of master records and injected records are not included |
 | Record count | the `HEDR` record count (records plus groups, as the Creation Kit writes it). It includes overrides and injected records, neither of which counts against the ESL limit |
 | Flags | the header flags that are set: `ESM`, `ESL`, `Localized` |
 | Light | True if the game loads the plugin as light (`.esl` file, or the ESL flag) |
@@ -36,7 +36,7 @@ Requires Windows 10 or 11, 64-bit.
 | ITM records | how many records are Identical To Master, counted the way xEdit's Quick Auto Clean does: against the plugin's masters only, which must be in the same folder. **MissingMaster** when one is not there; the row's hover text lists the masters with an X in front of each missing one |
 | Size, Created, Modified, Attributes | formatted exactly as Windows' own Details tab shows them |
 
-The header fields appear at once. Form count, record types, the deleted counts and ESLable need
+The header fields appear at once. Master Form Count, record types, the deleted counts and ESLable need
 a pass over every record, which runs in the background and fills in a moment
 later (Skyrim.esm, 250 MB, takes about a second).
 
@@ -72,7 +72,7 @@ tooltip** (on by default) makes these fields available in Explorer:
 |---|---|
 | Header Ver | the header version, e.g. `1.71` |
 | Form Ver | the file header's form version, `44` (SE) or `43` (LE) |
-| #Forms | the Form count: forms original to this plugin |
+| #Master Forms | the Master Form Count: forms this plugin is the master of |
 | #Records | the header record count (sorts as a number) |
 | Flags | `ESM, ESL, Localized` |
 | Is Light | True / False |
@@ -88,15 +88,15 @@ Turn the columns on in Details view: right-click a column header > **More...**.
 ![Explorer columns](docs/explorer-columns.png)
 
 The details pane (Alt+Shift+P) shows all of them plus the masters, and the
-tooltip when hovering a plugin shows #Records, the masters and, when it
-applies, the ESLable note. A master that is not in the plugin's folder is
+tooltip when hovering a plugin shows #Master Forms, Dirty and Is Light, the
+masters and, when it applies, the ESLable note. A master that is not in the plugin's folder is
 shown with an X in front of it. No tooltip at all? Turn on **Show pop-up
 description for folder and desktop items** in File Explorer Options > View.
 
 <img src="docs/details-pane.png" alt="Details pane" width="320">
 
 
-#Forms, #Deleted, Del NAVM and ESLable fill in after the other columns, because they need the
+#Master Forms, #Deleted, Del NAVM and ESLable fill in after the other columns, because they need the
 pass over every record. #ITM also reads the masters, so it says **Working**
 while low-priority background threads check the plugins, smallest first,
 and fills in as each finishes. All of these results are saved in
