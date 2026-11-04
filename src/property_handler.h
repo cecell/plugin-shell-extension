@@ -28,6 +28,7 @@ enum PluginPid : DWORD {
     kPidFormCount = 13,     // UInt32  records new to this plugin, the ESL-limited count (full scan)
     kPidItm = 14,           // String  ITM record count, "MissingMaster", empty when 0 (reads the masters)
     kPidDirty = 15,         // String  True / False (#Deleted or #ITM non-zero), "Working", "MissingMaster"
+    kPidTipStatus = 16,     // String  "Dirty: True    Is Light: False", one tooltip line (label hidden)
 };
 
 HRESULT CreatePropertyHandlerFactory(REFIID riid, void** ppv);
