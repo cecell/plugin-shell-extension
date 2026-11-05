@@ -10,7 +10,8 @@ the Actions page for a retry). Standard library only.
   unchanged from the release. Their hashes are checked against SHA256SUMS.txt
   before anything is uploaded, and the two files are zipped as they are.
 - The zip becomes a new version of the existing Nexus file (the old version
-  moves to "Old files"). The per-file note gets the release's first line and a
+  moves to "Old files") and the page's version number follows it (the API's
+  update_mod_version, not a page edit). The per-file note gets the release's first line and a
   link to the release (SHA-256, VirusTotal, build provenance).
 - The changelog entries come from the release notes: the first line, then each
   section heading and bullet, with Markdown stripped, except the "Upgrading..."
@@ -194,8 +195,9 @@ def main() -> int:
         call("POST", f"{V3}/mod-files/{FILE_GROUP}/versions", {
             "upload_id": uid, "name": FILE_NAME, "version": version, "description": note,
             "file_category": "main", "show_requirements_pop_up": False,
-            "allow_mod_manager_download": True, "archive_existing_file": True})
-        report(f"- Uploaded {archive.name} as version {version}; the previous version moved to Old files.")
+            "allow_mod_manager_download": True, "archive_existing_file": True, "update_mod_version": True})
+        report(f"- Uploaded {archive.name} as version {version}; the previous version moved to Old files; "
+               "the page's version follows it.")
     if has_log:
         report(f"- The changelog already has {version}; nothing added.")
     else:
