@@ -116,6 +116,22 @@ this option asks for administrator rights once. The rest of the extension is
 installed for your user only. Restart Explorer after installing so it picks up
 the columns.
 
+## Hardlink menu (optional)
+
+An optional setup task adds **Hardlink** to the right-click menu of every
+file. Mod managers such as Vortex deploy mods into `Data` as hardlinks: one
+file with two names, one in `Data` and one in the mod's staging folder.
+
+- A file with a single link shows a greyed **Not a hardlink**.
+- A hardlinked file gets a **Hardlink** submenu for each of its other links:
+  - **Copy path** copies that link's full path.
+  - **Open path**: **Here** opens its folder in the same window (Back
+    returns to where you were), **New tab** in a new tab (Windows 11 with
+    tabbed File Explorer; greyed otherwise), **New window** in a new window
+    with the file selected.
+- When a file has more than two links (an xEdit backup can share one too),
+  each other link gets its own block, headed by its path.
+
 ## Install and uninstall
 
 Run the setup. It opens on the GPL-3.0 licence, which has to be accepted,
@@ -246,11 +262,12 @@ Debugging switches:
 - `src/itm.*`, `src/itm_ctda.inc`: the ITM check, following xEdit's comparison rules (the condition-function table is generated from xEdit's source by `tools/gen_ctda_params.py`); localized strings come from `Strings\`, the plugin's BSA or `Skyrim - Interface.bsa`, read with bsa-reader
 - `src/property_window.*`: the window and its Property/Value list (custom, because a ListView cannot give rows different heights)
 - `src/context_menu.*`: the right-click menu handler
+- `src/hardlink_menu.*`: the optional Hardlink menu on every file (its own COM class, registered only by the setup task)
 - `src/property_handler.*`: the Explorer property handler behind the columns, details pane and tooltip
 - `src/registration.*`: registry layout for `regsvr32`; the installer writes the same keys
 - `src/dllmain.cpp`: COM exports and the `rundll32` entry points
 - `installer/PluginShellExtension.iss`: the Inno Setup installer
 - `installer/PluginShellExtension.propdesc`: the property schema (names, labels, types, alignment)
 - `installer/icon/`: the installer icon and its source image
-- `tools/`: `plugininfo`, `menutest`, `proptest`, `itmcheck` (lists a plugin's ITMs, or explains one FormID), `patterndump` + `patterncheck.py` (checks the decoder against a reference database)
+- `tools/`: `plugininfo`, `menutest`, `hardlinktest` (the Hardlink menu straight from the DLL, without registering it), `proptest`, `itmcheck` (lists a plugin's ITMs, or explains one FormID), `patterndump` + `patterncheck.py` (checks the decoder against a reference database)
 - `.github/workflows/build.yml`: the official build

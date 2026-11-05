@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(PluginShellExtension VERSION 0.93 LANGUAGES CXX RC)
+project(PluginShellExtension VERSION 0.94 LANGUAGES CXX RC)
 # Windows version resources need a third number; "0.90" has none.
 if(NOT PROJECT_VERSION_PATCH)
     set(PROJECT_VERSION_PATCH 0)
@@ -37,6 +37,7 @@ target_link_libraries(psecore PUBLIC shlwapi propsys)
 add_library(PluginShellExtension SHARED
     src/dllmain.cpp
     src/context_menu.cpp
+    src/hardlink_menu.cpp
     src/property_window.cpp
     src/property_handler.cpp
     src/embedded_patterns.cpp
@@ -73,6 +74,8 @@ target_link_libraries(proptest PRIVATE psecore shell32 ole32 shlwapi)
 
 add_executable(menutest tools/menutest.cpp)
 target_link_libraries(menutest PRIVATE psecore shell32 ole32)
+add_executable(hardlinktest tools/hardlinktest.cpp)
+target_link_libraries(hardlinktest PRIVATE shell32 ole32)
 
 set_target_properties(PluginShellExtension PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
