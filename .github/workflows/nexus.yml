@@ -1,0 +1,57 @@
+# Puts a published release on the Nexus Mods page (skyrimspecialedition/mods/197761):
+# the release's setup.exe + SHA256SUMS.txt, unchanged and hash-checked, zipped
+# as a new version of the existing file (the old one moves to Old files), the
+# per-file note set to the release's first line plus a link to the release, and
+# the changelog filled from the release notes. The mod page's own text is never
+# touched. See tools/nexus_release.py.
+#
+#   release published -> upload
+#   manual run (tag)  -> retry; a version already on Nexus is not uploaded twice
+#
+# Needs the secret NEXUS_API_KEY.
+
+name: Nexus Mods
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to upload (e.g. v0.94)
+        required: true
+      dry_run:
+        description: Only show what would be uploaded
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexus-upload
+  cancel-in-progress: false
+
+jobs:
+  nexus:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download the release's files and notes
+        run: |
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir rel \
+            --pattern '*-setup.exe' --pattern 'SHA256SUMS.txt'
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body > notes.md
+          ls -l rel
+
+      - name: Upload to Nexus Mods
+        env:
+          NEXUS_API_KEY: ${{ secrets.NEXUS_API_KEY }}
+        run: |
+          python3 tools/nexus_release.py --tag "$TAG" --assets rel --notes notes.md \
+            ${{ inputs.dry_run && '--dry-run' || '' }}
