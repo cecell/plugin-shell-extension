@@ -12,7 +12,8 @@ It only reads plugins; it never changes them.
 ## Download
 
 Get `PluginShellExtension-<version>-setup.exe` from the
-[latest release](https://github.com/cecell/plugin-shell-extension/releases/latest).
+[latest release](https://github.com/cecell/plugin-shell-extension/releases/latest),
+or from [Nexus Mods](https://www.nexusmods.com/skyrimspecialedition/mods/197761).
 
 Requires Windows 10 or 11, 64-bit.
 
@@ -157,6 +158,10 @@ Windows runner, not on a personal PC:
 - a release attaches one run's files unchanged, so they are byte for byte the
   files that run hashed; the release notes link the run and the VirusTotal
   reports
+- publishing a release also puts it on Nexus Mods
+  ([`.github/workflows/nexus.yml`](.github/workflows/nexus.yml)): the
+  release's installer and `SHA256SUMS.txt`, hash-checked and zipped unchanged,
+  with the changelog taken from the release notes
 - runs since the repository became public also attach signed build
   provenance, which ties each file's hash to the commit and the run:
 
