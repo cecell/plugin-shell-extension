@@ -7,6 +7,7 @@
 
 #include "context_menu.h"
 #include "debug_log.h"
+#include "hardlink_menu.h"
 #include "property_handler.h"
 #include "property_window.h"
 #include "registration.h"
@@ -71,6 +72,7 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
                  clsid == pse::kClsidPropertyHandler);
     if (clsid == pse::kClsidContextMenu) return pse::CreateClassFactory(riid, ppv);
     if (clsid == pse::kClsidPropertyHandler) return pse::CreatePropertyHandlerFactory(riid, ppv);
+    if (clsid == pse::kClsidHardlinkMenu) return pse::CreateHardlinkMenuFactory(riid, ppv);
     return CLASS_E_CLASSNOTAVAILABLE;
 }
 

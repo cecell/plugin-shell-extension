@@ -23,6 +23,9 @@
 #define ClsidKey "Software\Classes\CLSID\" + Clsid
 #define Sfa "Software\Classes\SystemFileAssociations"
 #define PropHandlerClsid "{E0BA20B2-0391-45F5-80C3-07E306E945E9}"
+#define HardlinkClsid "{{9FB91679-FC8C-4040-9C35-61E735E81908}"
+#define HardlinkClsidKey "Software\Classes\CLSID\" + HardlinkClsid
+#define HardlinkMenuKey "Software\Classes\*\shellex\ContextMenuHandlers\PluginShellExtensionHardlink"
 #define P "Cecell.PluginShellExtension."
 ; Details pane (Alt+Shift+P) and hover tooltip contents.
 #define PreviewDetails "prop:" + P + "HeaderVersion;" + P + "FormVersion;" + P + "FormCount;" + P + "RecordCount;" + P + "Flags;" + P + "Light;" + P + "MasterCount;" + P + "DeletedCount;" + P + "DeletedNavmeshes;" + P + "ItmCount;" + P + "Dirty;" + P + "ESLable;" + P + "ESLNote;" + P + "Masters;*System.DateModified;*System.Size;*System.DateCreated"
@@ -68,6 +71,7 @@ FinishedLabelNoIcons=Setup has finished installing [name] on your computer.%n%nR
 
 [Tasks]
 Name: "columns"; Description: "  Add columns to Explorer, the details pane and files tooltip (requires admin rights)"
+Name: "hardlink"; Description: "  Add ""Hardlink"" to the right-click menu of every file (copy or open the path of its other link)"
 
 [Files]
 Source: "{#BinDir}\PluginShellExtension.dll"; DestDir: "{app}"; Flags: ignoreversion
@@ -104,6 +108,11 @@ Root: HKA; Subkey: "{#Sfa}\.esl"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esl\shellex"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esl\shellex\ContextMenuHandlers"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esl\shellex\ContextMenuHandlers\PluginShellExtension"; ValueType: string; ValueData: "{#Clsid}"; Flags: uninsdeletekey
+; Optional "Hardlink" entry on every file's context menu (src/hardlink_menu.cpp).
+Root: HKA; Subkey: "{#HardlinkClsidKey}"; ValueType: string; ValueData: "Plugin Shell Extension hardlink menu"; Flags: uninsdeletekey; Tasks: hardlink
+Root: HKA; Subkey: "{#HardlinkClsidKey}\InprocServer32"; ValueType: string; ValueData: "{app}\PluginShellExtension.dll"; Tasks: hardlink
+Root: HKA; Subkey: "{#HardlinkClsidKey}\InprocServer32"; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Tasks: hardlink
+Root: HKA; Subkey: "{#HardlinkMenuKey}"; ValueType: string; ValueData: "{#HardlinkClsid}"; Flags: uninsdeletekey; Tasks: hardlink
 ; Details pane and tooltip fields (per user; the properties themselves come
 ; from the machine-wide handler the columns task registers).
 Root: HKA; Subkey: "{#Sfa}\.esp"; ValueType: string; ValueName: "PreviewDetails"; ValueData: "{#PreviewDetails}"; Flags: uninsdeletevalue; Tasks: columns
@@ -158,7 +167,7 @@ end;
 
 procedure AddTasksPageText;
 begin
-  WizardForm.TasksList.Height := ScaleY(56);
+  WizardForm.TasksList.Height := ScaleY(72);
   AiNotice := AddPageText('Plugin Shell Extension was written with the assistance of Claude by Anthropic. ' +
     'Many have negative feelings towards AI but it has been a life saver for people like me who struggle ' +
     'with cognitive disabilities. I hope this software is helpful.');
@@ -257,6 +266,10 @@ begin
           mbInformation, MB_OK, IDOK);
     end else if ColumnsRegistered then
       RunColumnsRegistration(False);  // the task was unticked on an update
+    if not WizardIsTaskSelected('hardlink') then begin  // unticked on an update: remove it
+      RegDeleteKeyIncludingSubkeys(HKA, '{#HardlinkMenuKey}');
+      RegDeleteKeyIncludingSubkeys(HKA, '{#HardlinkClsidKey}');
+    end;
   end;
 end;
 
