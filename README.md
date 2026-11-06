@@ -209,6 +209,10 @@ Copyright (C) Jordan Russell.
 Localized strings packed in BSA archives (including LZ4-compressed ones) are
 read with [bsa-reader](https://github.com/cecell/bsa-reader) (GPL-3.0).
 
+The inflate code in `src/inflate.cpp` is altered from puff, by Mark Adler, part
+of the [zlib](https://github.com/madler/zlib) distribution. Its notice is in that
+file.
+
 Plugin Shell Extension was written with the assistance of Claude by Anthropic.
 Many have negative feelings towards AI but it has been a life saver for people
 like me who struggle with cognitive disabilities. I hope this software is
