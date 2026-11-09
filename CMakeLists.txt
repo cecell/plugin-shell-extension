@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(PluginShellExtension VERSION 0.94 LANGUAGES CXX RC)
+project(PluginShellExtension VERSION 0.95 LANGUAGES CXX RC)
 # Windows version resources need a third number; "0.90" has none.
 if(NOT PROJECT_VERSION_PATCH)
     set(PROJECT_VERSION_PATCH 0)
