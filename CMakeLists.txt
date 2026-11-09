@@ -19,20 +19,20 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 include(FetchContent)
 FetchContent_Declare(bsa_reader
     GIT_REPOSITORY https://github.com/cecell/bsa-reader.git
-    GIT_TAG f2a8a197f67dad709803779046f85d8a33957873)  # after v0.1.1: the engine's hash corner cases
+    GIT_TAG 82d7e72fdbbb6c154aff7146db32a2b21b5eab00)  # after v0.1.1: the engine's hash corner cases
 FetchContent_MakeAvailable(bsa_reader)
 # beth-asset-metadata (GPL-3.0, github.com/cecell/beth-asset-metadata): header
 # facts for the .tga and .fuz property handler. Pinned to the commit of tag
 # v0.4.0; library changes go to that repo, then bump this pin.
 FetchContent_Declare(asset_metadata
     GIT_REPOSITORY https://github.com/cecell/beth-asset-metadata.git
-    GIT_TAG 9d0c51a3cb43866d9e0e2118a6f73a2c83074057)  # v0.4.0
+    GIT_TAG 1a9a77786d94aa5188ec28bdbd6da011053d348f)  # v0.4.0
 FetchContent_MakeAvailable(asset_metadata)
 # skqe-papyrus-decompiler (GPL-3.0, github.com/cecell/skqe-papyrus-decompiler):
 # Decompile on .pex and Compile on .psc. Its pex program isn't built here.
 FetchContent_Declare(skqe_papyrus_lib
     GIT_REPOSITORY https://github.com/cecell/skqe-papyrus-decompiler.git
-    GIT_TAG c3181306016544584cb4d3c5194a85f9bfaa067e)
+    GIT_TAG f95fea7134b2752fa85683f19878ebebdcc8ce0c)
 FetchContent_MakeAvailable(skqe_papyrus_lib)
 # nlohmann/json (MIT): the saved folder views file.
 FetchContent_Declare(nlohmann_json
