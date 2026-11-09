@@ -135,7 +135,7 @@ Root: HKA; Subkey: "{#Sfa}\.fuz"; ValueType: string; ValueName: "InfoTip"; Value
 Root: HKA; Subkey: "{#Sfa}\.fuz"; ValueType: string; ValueName: "FullDetails"; ValueData: "{#FuzDetails}"; Flags: uninsdeletevalue; Tasks: columns
 
 [Run]
-Filename: "{app}\README.md"; Description: "Open the README"; Flags: postinstall shellexec skipifsilent nowait
+Filename: "{app}\README.md"; Description: "Open the README"; Flags: postinstall shellexec skipifsilent nowait unchecked
 
 [Code]
 // Before 0.90 this extension shipped under another name and AppId, using the
@@ -179,7 +179,7 @@ end;
 
 procedure AddTasksPageText;
 begin
-  WizardForm.TasksList.Height := ScaleY(72);
+  WizardForm.TasksList.Height := ScaleY(126);
   AiNotice := AddPageText('Plugin Shell Extension was written with the assistance of Claude by Anthropic. ' +
     'Many have negative feelings towards AI but it has been a life saver for people like me who struggle ' +
     'with cognitive disabilities. I hope this software is helpful.');

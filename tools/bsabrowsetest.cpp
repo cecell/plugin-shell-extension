@@ -261,7 +261,12 @@ int Registration() {
     RegDeleteTreeW(HKEY_CURRENT_USER, base.c_str());
     const std::wstring old = L"bsa_auto_file";
     RegSetKeyValueW(HKEY_CURRENT_USER, extKey.c_str(), nullptr, REG_SZ, old.c_str(), static_cast<DWORD>((old.size() + 1) * sizeof(wchar_t)));
+    RegSetKeyValueW(HKEY_CURRENT_USER, (extKey + L"\\OpenWithProgids").c_str(), pse::kBsaProgId, REG_NONE, nullptr, 0);
     Check(pse::InstallBsaBrowser(HKEY_CURRENT_USER, classes, ext, L"C:\\x.dll"), L"install succeeds");
+    Check(!Exists(extKey + L"\\OpenWithProgids"), L"no OpenWithProgids entry is left to trigger the program prompt");
+    Check(Exists(prog + L"\\DefaultIcon"), L"the type has the zip icon");
+    Check(Read(prog + L"\\shell\\open", L"FriendlyAppName") == L"Plugin Shell Extension", L"the open verb has our name");
+    Check(Read(prog + L"\\Application", L"ApplicationName") == L"Plugin Shell Extension", L"the type has our application name");
     Check(Read(extKey, nullptr) == pse::kBsaProgId, L"the extension points at our type");
     Check(Read(prog, pse::kPreviousProgIdValue) == old, L"the previous type is recorded");
     Check(Read(prog + L"\\CLSID", nullptr) == pse::kBsaFolderClsidString, L"the type names the folder");

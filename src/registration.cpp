@@ -86,6 +86,12 @@ namespace {
 // Windows' own "open this as a folder" command, the one zip files use.
 const wchar_t kExecuteFolder[] = L"{11dbb47c-a525-400b-9e80-a54615a090c0}";
 const wchar_t kExplorerCommand[] = L"%SystemRoot%\\Explorer.exe /idlist,%I,%L";
+const wchar_t kBsaAppName[] = L"Plugin Shell Extension";
+
+// The command holds %SystemRoot%, so it has to be stored as an expandable string, as zip's is.
+LSTATUS SetExplorerCommand(HKEY root, const std::wstring& commandKey) {
+    return RegSetKeyValueW(root, commandKey.c_str(), nullptr, REG_EXPAND_SZ, kExplorerCommand, sizeof(kExplorerCommand));
+}
 }  // namespace
 
 namespace {
@@ -129,21 +135,32 @@ bool InstallBsaBrowser(HKEY root, const std::wstring& classes, const std::wstrin
     if (st == ERROR_SUCCESS) st = SetString(root, clsid + L"\\Implemented Categories\\{00021490-0000-0000-C000-000000000046}", nullptr, L"");
     if (st == ERROR_SUCCESS) st = SetString(root, prog, nullptr, L"Bethesda archive");
     if (st == ERROR_SUCCESS) st = SetString(root, prog + L"\\CLSID", nullptr, kBsaFolderClsidString);
-    if (st == ERROR_SUCCESS) st = SetString(root, prog + L"\\shell\\open\\command", nullptr, kExplorerCommand);
+    // The same icon as a zip file. Without it Explorer draws a plain folder.
+    if (st == ERROR_SUCCESS) {
+        static const wchar_t icon[] = L"%SystemRoot%\\system32\\zipfldr.dll";
+        st = RegSetKeyValueW(root, (prog + L"\\DefaultIcon").c_str(), nullptr, REG_EXPAND_SZ, icon, sizeof(icon));
+    }
+    // Windows would otherwise name the program after ExplorerFrame.dll, which runs the open verb.
+    if (st == ERROR_SUCCESS) st = SetString(root, prog + L"\\shell\\open", L"FriendlyAppName", kBsaAppName);
+    if (st == ERROR_SUCCESS) st = SetString(root, prog + L"\\Application", L"ApplicationName", kBsaAppName);
+    if (st == ERROR_SUCCESS) st = SetExplorerCommand(root, prog + L"\\shell\\open\\command");
     if (st == ERROR_SUCCESS) st = SetString(root, prog + L"\\shell\\open\\command", L"DelegateExecute", kExecuteFolder);
     const std::wstring managerClsid = classes + L"CLSID\\" + kBsaManagerClsidString;
     const std::wstring manager = classes + L"SystemFileAssociations\\" + ext + L"\\shellex\\ContextMenuHandlers\\PluginShellExtensionBsaManager";
     if (st == ERROR_SUCCESS) st = WriteHandler(root, managerClsid, L"Plugin Shell Extension BSA manager", dllPath);
     if (st == ERROR_SUCCESS) st = SetString(root, manager, nullptr, kBsaManagerClsidString);
     if (st == ERROR_SUCCESS) st = SetString(root, verb, nullptr, L"Browse contents");
-    if (st == ERROR_SUCCESS) st = SetString(root, verb + L"\\command", nullptr, kExplorerCommand);
+    if (st == ERROR_SUCCESS) st = SetExplorerCommand(root, verb + L"\\command");
     if (st == ERROR_SUCCESS) st = SetString(root, verb + L"\\command", L"DelegateExecute", kExecuteFolder);
     wchar_t current[256] = {};
     DWORD size = sizeof(current);
     const bool had = RegGetValueW(root, extKey.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, current, &size) == ERROR_SUCCESS && current[0];
     if (st == ERROR_SUCCESS && had && _wcsicmp(current, kBsaProgId) != 0) st = SetString(root, prog, kPreviousProgIdValue, current);
     if (st == ERROR_SUCCESS) st = SetString(root, extKey, nullptr, kBsaProgId);
-    if (st == ERROR_SUCCESS) st = RegSetKeyValueW(root, (extKey + L"\\OpenWithProgids").c_str(), kBsaProgId, REG_NONE, nullptr, 0);
+    // A new OpenWithProgids entry makes Windows ask which program to use, so
+    // the extension's default is all that gets set. Earlier versions wrote one.
+    RegDeleteKeyValueW(root, (extKey + L"\\OpenWithProgids").c_str(), kBsaProgId);
+    RegDeleteKeyW(root, (extKey + L"\\OpenWithProgids").c_str());
     if (st != ERROR_SUCCESS) {
         RemoveBsaBrowser(root, classes, ext);
         return false;
