@@ -971,13 +971,6 @@ private:
 
     void OpenFile(HWND hwnd, int node) {
         const ArchivePtr& archive = folder_->GetArchive();
-        const std::wstring& name = archive->At(node).name;
-        const size_t dot = name.rfind(L'.');
-        if (dot != std::wstring::npos && AssocIsDangerous(name.c_str() + dot)) {
-            MessageBoxW(hwnd, L"This file type can run code, so it won't be opened from inside an archive. Copy it out first if you trust it.",
-                        L"Plugin Shell Extension", MB_ICONWARNING);
-            return;
-        }
         std::vector<uint8_t> data;
         if (!archive->Read(node, &data)) {
             MessageBoxW(hwnd, L"This file couldn't be read from the archive.", L"Plugin Shell Extension", MB_ICONERROR);

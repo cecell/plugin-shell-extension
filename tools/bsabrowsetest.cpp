@@ -2,6 +2,7 @@
 //
 //   bsabrowsetest --direct <dll> <archive> [...]   walks each archive and reads a sample
 //   bsabrowsetest --registration                   installs and removes it in a throwaway key
+//   bsabrowsetest --open <dll> <archive> <folder> <file>   opens one file, as a double-click does
 //   bsabrowsetest --explorer <dll> <archive> <empty folder>
 //       Registers a made-up extension for the current user, opens the archive in
 //       Windows' real folder view (the same one Explorer uses), goes into a folder
@@ -104,6 +105,37 @@ int Direct(int argc, wchar_t** argv) {
     }
     factory->Release();
     return 0;
+}
+
+int OpenInside(const wchar_t* dllPath, const wchar_t* archive, const wchar_t* folderName, const wchar_t* fileName) {
+    HMODULE dll = LoadLibraryW(dllPath);
+    auto getClassObject = dll ? reinterpret_cast<HRESULT(STDAPICALLTYPE*)(REFCLSID, REFIID, void**)>(GetProcAddress(dll, "DllGetClassObject")) : nullptr;
+    IClassFactory* factory = nullptr;
+    if (!getClassObject || FAILED(getClassObject(pse::kClsidBsaFolder, IID_PPV_ARGS(&factory)))) return 2;
+    LPITEMIDLIST pidl = nullptr;
+    IPersistFolder* persist = nullptr;
+    IShellFolder* root = nullptr;
+    if (FAILED(SHParseDisplayName(archive, nullptr, &pidl, 0, nullptr)) || FAILED(factory->CreateInstance(nullptr, IID_PPV_ARGS(&persist))) ||
+        FAILED(persist->Initialize(pidl)) || FAILED(persist->QueryInterface(IID_PPV_ARGS(&root))))
+        return 2;
+    wchar_t name[MAX_PATH];
+    wcscpy_s(name, folderName);
+    LPITEMIDLIST folderItem = nullptr;
+    IShellFolder* folder = nullptr;
+    if (FAILED(root->ParseDisplayName(nullptr, nullptr, name, nullptr, &folderItem, nullptr)) || FAILED(root->BindToObject(folderItem, nullptr, IID_PPV_ARGS(&folder)))) return 2;
+    wcscpy_s(name, fileName);
+    LPITEMIDLIST fileItem = nullptr;
+    if (FAILED(folder->ParseDisplayName(nullptr, nullptr, name, nullptr, &fileItem, nullptr))) return 2;
+    PCUITEMID_CHILD one = fileItem;
+    IContextMenu* menu = nullptr;
+    if (FAILED(folder->GetUIObjectOf(nullptr, 1, &one, IID_IContextMenu, nullptr, reinterpret_cast<void**>(&menu)))) return 2;
+    CMINVOKECOMMANDINFO info{sizeof(info)};
+    info.lpVerb = "open";
+    info.nShow = SW_HIDE;
+    const HRESULT hr = menu->InvokeCommand(&info);
+    wprintf(L"open: %08x\n", static_cast<unsigned>(hr));
+    menu->Release();
+    return FAILED(hr) ? 1 : 0;
 }
 
 std::wstring Read(const std::wstring& key, const wchar_t* value) {
@@ -416,6 +448,7 @@ int wmain(int argc, wchar_t** argv) {
     OleInitialize(nullptr);
     int rc = 2;
     if (argc >= 4 && !wcscmp(argv[1], L"--direct")) rc = Direct(argc, argv);
+    else if (argc == 6 && !wcscmp(argv[1], L"--open")) rc = OpenInside(argv[2], argv[3], argv[4], argv[5]);
     else if (argc == 5 && !wcscmp(argv[1], L"--explorer")) rc = ExplorerTest(argv[2], argv[3], argv[4]);
     else fwprintf(stderr, L"usage: see the top of bsabrowsetest.cpp\n");
     OleUninitialize();
