@@ -119,6 +119,23 @@ void RemoveHashMenu(HKEY root, const std::wstring& classes) {
     RegDeleteKeyW(root, clsid.c_str());
 }
 
+bool InstallFolderViewsMenu(HKEY root, const std::wstring& classes, const std::wstring& dllPath) {
+    const std::wstring clsid = classes + L"CLSID\\" + kFolderViewsMenuClsidString;
+    LSTATUS st = WriteHandler(root, clsid, L"Plugin Shell Extension folder views menu", dllPath);
+    if (st == ERROR_SUCCESS) st = SetString(root, classes + L"Directory\\Background\\shellex\\ContextMenuHandlers\\PluginShellExtensionFolderViews", nullptr, kFolderViewsMenuClsidString);
+    if (st != ERROR_SUCCESS) RemoveFolderViewsMenu(root, classes);
+    return st == ERROR_SUCCESS;
+}
+
+void RemoveFolderViewsMenu(HKEY root, const std::wstring& classes) {
+    const std::wstring key = classes + L"Directory\\Background\\shellex\\ContextMenuHandlers\\PluginShellExtensionFolderViews";
+    RegDeleteTreeW(root, key.c_str());
+    RegDeleteKeyW(root, key.c_str());
+    const std::wstring clsid = classes + L"CLSID\\" + kFolderViewsMenuClsidString;
+    RegDeleteTreeW(root, clsid.c_str());
+    RegDeleteKeyW(root, clsid.c_str());
+}
+
 bool InstallPapyrusMenu(HKEY root, const std::wstring& classes, const std::wstring& dllPath) {
     const std::wstring clsid = classes + L"CLSID\\" + kPapyrusMenuClsidString;
     LSTATUS st = WriteHandler(root, clsid, L"Plugin Shell Extension Papyrus menu", dllPath);

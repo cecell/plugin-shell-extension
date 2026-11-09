@@ -34,6 +34,11 @@ FetchContent_Declare(skqe_papyrus_lib
     GIT_REPOSITORY https://github.com/cecell/skqe-papyrus-decompiler.git
     GIT_TAG c3181306016544584cb4d3c5194a85f9bfaa067e)
 FetchContent_MakeAvailable(skqe_papyrus_lib)
+# nlohmann/json (MIT): the saved folder views file.
+FetchContent_Declare(nlohmann_json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    URL_HASH SHA256=d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d)
+FetchContent_MakeAvailable(nlohmann_json)
 
 add_compile_definitions(UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00
     PSE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR} PSE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
@@ -56,6 +61,7 @@ add_library(PluginShellExtension SHARED
     src/asset_property_handler.cpp
     src/bsa_folder.cpp
     src/tool_menus.cpp
+    src/folder_views_menu.cpp
     src/tool_windows.cpp
     src/embedded_patterns.cpp
     src/PluginShellExtension.def
@@ -81,9 +87,11 @@ add_library(psetools STATIC
     src/work_budget.cpp
     src/bsa_tools.cpp
     src/papyrus_tools.cpp
+    src/folder_views.cpp
     src/disk_cache.cpp)
 target_include_directories(psetools PUBLIC src)
-target_link_libraries(psetools PUBLIC psepattern bsa::reader skqe::papyrus bcrypt advapi32)
+target_link_libraries(psetools PUBLIC psepattern bsa::reader skqe::papyrus bcrypt advapi32 shell32 ole32 propsys shlwapi)
+target_link_libraries(psetools PRIVATE nlohmann_json::nlohmann_json)
 
 add_executable(itmcheck tools/itmcheck.cpp)
 target_link_libraries(itmcheck PRIVATE psepattern)

@@ -76,6 +76,7 @@ Name: "columns"; Description: "  Add columns to Explorer, the details pane and f
 Name: "bsa"; Description: "  Browse .bsa archives in Explorer and add the BSA manager menu (read-only)"
 Name: "hashes"; Description: "  Add ""Hashes"" to the right-click menu of every file (SHA-256, CRC-32 and MD5)"
 Name: "papyrus"; Description: "  Add ""Decompile"" to .pex and ""Compile"" to .psc files in the right-click menu"
+Name: "folderviews"; Description: "  Add ""Folder views"" to the folder background menu (save layouts and apply them to other folders)"
 Name: "hardlink"; Description: "  Add ""Hardlink"" to the right-click menu of every file (copy or open the path of its other link)"
 
 [Files]
@@ -180,7 +181,7 @@ end;
 
 procedure AddTasksPageText;
 begin
-  WizardForm.TasksList.Height := ScaleY(126);
+  WizardForm.TasksList.Height := ScaleY(150);
   AiNotice := AddPageText('Plugin Shell Extension was written with the assistance of Claude by Anthropic. ' +
     'Many have negative feelings towards AI but it has been a life saver for people like me who struggle ' +
     'with cognitive disabilities. I hope this software is helpful.');
@@ -285,6 +286,24 @@ begin
   Log(Format('regsvr32 %s -> code=%d', [Params, Code]));
 end;
 
+function FolderViewsRegistered: Boolean;
+begin
+  Result := RegKeyExists(HKCU, 'Software\Classes\Directory\Background\shellex\ContextMenuHandlers\PluginShellExtensionFolderViews');
+end;
+
+// Runs regsvr32 /n /i:views (or /u ...) on the installed DLL, for this user.
+procedure RunFolderViewsRegistration(Install: Boolean);
+var
+  Params: String;
+  Code: Integer;
+begin
+  Params := '/s /n /i:views "' + ExpandConstant('{app}\PluginShellExtension.dll') + '"';
+  if not Install then
+    Params := '/u ' + Params;
+  Exec(ExpandConstant('{sys}\regsvr32.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Log(Format('regsvr32 %s -> code=%d', [Params, Code]));
+end;
+
 function PapyrusMenuRegistered: Boolean;
 begin
   Result := RegKeyExists(HKCU, 'Software\Classes\SystemFileAssociations\.pex\shellex\ContextMenuHandlers\PluginShellExtensionPapyrus');
@@ -337,6 +356,10 @@ begin
       RunHashRegistration(True)
     else if HashMenuRegistered then
       RunHashRegistration(False);
+    if WizardIsTaskSelected('folderviews') then
+      RunFolderViewsRegistration(True)
+    else if FolderViewsRegistered then
+      RunFolderViewsRegistration(False);
     if WizardIsTaskSelected('papyrus') then
       RunPapyrusRegistration(True)
     else if PapyrusMenuRegistered then
@@ -358,6 +381,8 @@ begin
     // Unregister while the DLL and schema are still in place.
     if HashMenuRegistered then
       RunHashRegistration(False);
+    if FolderViewsRegistered then
+      RunFolderViewsRegistration(False);
     if PapyrusMenuRegistered then
       RunPapyrusRegistration(False);
     if BsaBrowseRegistered then

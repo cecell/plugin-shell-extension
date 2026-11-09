@@ -27,6 +27,12 @@
 
 #include "bsa_tools.h"
 #include "papyrus_tools.h"
+#include "folder_views.h"
+#include <exdisp.h>
+#include <shlguid.h>
+#include <wrl/client.h>
+#include <initguid.h>
+#include <propkey.h>
 #include <filesystem>
 #include <fstream>
 #include "registration.h"
@@ -223,6 +229,206 @@ int PapyrusListOnThisThread(const wchar_t* listPath, const wchar_t* data) {
     return problems ? 1 : 0;
 }
 
+// Drives a real Explorer window from outside its process.
+namespace views {
+using Microsoft::WRL::ComPtr;
+int g_fail = 0;
+void Expect(bool ok, const wchar_t* what) {
+    wprintf(L"%ls %ls\n", ok ? L"ok  " : L"FAIL", what);
+    if (!ok) ++g_fail;
+}
+void Pump(DWORD ms) {
+    const ULONGLONG end = GetTickCount64() + ms;
+    while (GetTickCount64() < end) {
+        MSG m;
+        while (PeekMessageW(&m, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&m); DispatchMessageW(&m); }
+        Sleep(10);
+    }
+}
+ComPtr<IWebBrowser2> FindWindowFor(const std::wstring& folder) {
+    ComPtr<IShellWindows> windows;
+    if (FAILED(CoCreateInstance(CLSID_ShellWindows, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&windows)))) return nullptr;
+    long count = 0;
+    windows->get_Count(&count);
+    for (long i = 0; i < count; ++i) {
+        VARIANT index{};
+        index.vt = VT_I4;
+        index.lVal = i;
+        ComPtr<IDispatch> item;
+        if (windows->Item(index, &item) != S_OK || !item) continue;
+        ComPtr<IServiceProvider> sp;
+        ComPtr<IShellBrowser> browser;
+        ComPtr<IShellView> view;
+        ComPtr<IFolderView> fv;
+        ComPtr<IPersistFolder2> pf;
+        if (FAILED(item.As(&sp)) || FAILED(sp->QueryService(SID_STopLevelBrowser, IID_PPV_ARGS(&browser))) || FAILED(browser->QueryActiveShellView(&view)) || FAILED(view.As(&fv)) || FAILED(fv->GetFolder(IID_PPV_ARGS(&pf)))) continue;
+        PIDLIST_ABSOLUTE pidl = nullptr;
+        wchar_t path[1024] = {};
+        if (SUCCEEDED(pf->GetCurFolder(&pidl))) { SHGetPathFromIDListW(pidl, path); CoTaskMemFree(pidl); }
+        if (!_wcsicmp(path, folder.c_str())) { ComPtr<IWebBrowser2> web; item.As(&web); return web; }
+    }
+    return nullptr;
+}
+ComPtr<IWebBrowser2> Open(const std::wstring& folder) {
+    ShellExecuteW(nullptr, L"open", L"explorer.exe", (L"\"" + folder + L"\"").c_str(), nullptr, SW_SHOWNOACTIVATE);
+    for (int i = 0; i < 200; ++i) {
+        Pump(50);
+        if (auto w = FindWindowFor(folder)) return w;
+    }
+    return nullptr;
+}
+bool ViewOf(IWebBrowser2* web, ComPtr<IShellBrowser>& browser, ComPtr<IShellView>& view) {
+    ComPtr<IServiceProvider> sp;
+    return SUCCEEDED(web->QueryInterface(IID_PPV_ARGS(&sp))) && SUCCEEDED(sp->QueryService(SID_STopLevelBrowser, IID_PPV_ARGS(&browser))) && SUCCEEDED(browser->QueryActiveShellView(&view));
+}
+std::wstring Key(const PROPERTYKEY& k) { wchar_t t[PKEYSTR_MAX] = {}; PSStringFromPropertyKey(k, t, ARRAYSIZE(t)); return t; }
+void Print(const pse::FolderViewState& s) {
+    wprintf(L"  mode=%d icon=%d group=[%ls] columns=%zu:", s.mode, s.iconSize, s.groupKey.c_str(), s.columns.size());
+    for (auto& c : s.columns) wprintf(L" %u", c.width);
+    wprintf(L" sort=%zu", s.sort.size());
+    for (auto& c : s.sort) wprintf(L" %d", c.direction);
+    wprintf(L"\n");
+}
+bool Same(const pse::FolderViewState& a, const pse::FolderViewState& b) {
+    if (a.mode != b.mode || a.groupKey != b.groupKey || a.columns.size() != b.columns.size() || a.sort.size() != b.sort.size()) return false;
+    if (a.mode != FVM_DETAILS && a.iconSize != b.iconSize) return false;
+    for (size_t i = 0; i < a.columns.size(); ++i) if (a.columns[i].key != b.columns[i].key || a.columns[i].width != b.columns[i].width) return false;
+    for (size_t i = 0; i < a.sort.size(); ++i) if (a.sort[i].key != b.sort[i].key || a.sort[i].direction != b.sort[i].direction) return false;
+    return true;
+}
+int Run(const std::wstring& root) {
+    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    auto web = Open(root);
+    Expect(web != nullptr, L"a real Explorer window opened on the test folder");
+    if (!web) return 1;
+    ComPtr<IShellBrowser> browser;
+    ComPtr<IShellView> view;
+    Expect(ViewOf(web.Get(), browser, view), L"its view can be reached");
+    pse::FolderViewState original;
+    HRESULT hr = pse::CaptureFolderView(view.Get(), original);
+    wprintf(L"capture hr=0x%08lx\n", static_cast<unsigned long>(hr));
+    Expect(SUCCEEDED(hr), L"capture works");
+    Print(original);
+
+    pse::FolderViewState a;
+    a.name = L"A";
+    a.mode = FVM_DETAILS;
+    a.iconSize = 16;
+    a.columns = {{Key(PKEY_ItemNameDisplay), 300}, {Key(PKEY_Size), 420}, {Key(PKEY_ItemTypeText), 360}, {Key(PKEY_DateModified), 240}};
+    a.sort = {{Key(PKEY_Size), -1}};
+    a.groupKey = Key(PKEY_ItemTypeText);
+    a.groupAscending = true;
+    hr = pse::ApplyFolderView(view.Get(), a);
+    wprintf(L"apply hr=0x%08lx\n", static_cast<unsigned long>(hr));
+    Expect(SUCCEEDED(hr), L"apply A works");
+    Pump(600);
+    pse::FolderViewState got;
+    ViewOf(web.Get(), browser, view);
+    pse::CaptureFolderView(view.Get(), got);
+    Print(got);
+    Expect(Same(a, got), L"mode, columns, order, widths, sort and group all read back as applied");
+
+    for (UINT w : {60u, 100u, 130u, 190u, 201u, 250u}) {
+        pse::FolderViewState p = a;
+        p.columns[1].width = w;
+        pse::ApplyFolderView(view.Get(), p);
+        Pump(250);
+        pse::FolderViewState r;
+        pse::CaptureFolderView(view.Get(), r);
+        wprintf(L"probe size column %u -> %u\n", w, r.columns[1].width);
+    }
+    pse::ApplyFolderView(view.Get(), a);
+    Pump(250);
+    pse::FolderViewState b = a;
+    b.name = L"B";
+    b.mode = FVM_ICON;
+    b.iconSize = 256;
+    b.groupKey.clear();
+    b.sort = {{Key(PKEY_ItemNameDisplay), 1}};
+    pse::ApplyFolderView(view.Get(), b);
+    Pump(600);
+    pse::CaptureFolderView(view.Get(), got);
+    Print(got);
+    Expect(got.mode == FVM_ICON && got.iconSize == 256 && got.groupKey.empty(), L"extra large icons and no grouping read back");
+
+    pse::ApplyFolderView(view.Get(), a);
+    Pump(400);
+    web->Quit();
+    web.Reset(); browser.Reset(); view.Reset();
+    Pump(1500);
+    web = Open(root);
+    Expect(web != nullptr, L"the folder reopened");
+    if (web) {
+        ViewOf(web.Get(), browser, view);
+        pse::FolderViewState back;
+        pse::CaptureFolderView(view.Get(), back);
+        Print(back);
+        Expect(Same(a, back), L"Windows remembered the layout after the window closed");
+
+        // The subfolder walk, in the same window.
+        bool finished = false;
+        std::wstring message;
+        pse::FolderViewWalkCallbacks cb;
+        size_t asked = 0;
+        cb.confirm = [&](size_t n) { asked = n; return true; };
+        cb.report = [&](const std::wstring& m) { message = m; };
+        cb.done = [&] { finished = true; };
+        pse::FolderViewState c = a;
+        c.columns[1].width = 410;
+        const ULONGLONG t0 = GetTickCount64();
+        Expect(pse::StartFolderViewWalk(browser.Get(), root, c, cb), L"the walk starts");
+        while (!finished && GetTickCount64() - t0 < 120000) Pump(20);
+        wprintf(L"walk: asked=%zu finished=%d ms=%llu message=[%ls]\n", asked, finished, GetTickCount64() - t0, message.c_str());
+        Expect(finished && message.empty(), L"the walk finishes cleanly");
+        Expect(asked == 4, L"it found all 4 subfolders and skipped the hidden one");
+        Pump(800);
+        Expect(FindWindowFor(root) != nullptr, L"the window came back to where it started");
+        web->Quit();
+        web.Reset(); browser.Reset(); view.Reset();
+        Pump(1200);
+        for (const wchar_t* sub : {L"\\one", L"\\two", L"\\two\\deep", L"\\three"}) {
+            auto w = Open(root + sub);
+            Expect(w != nullptr, sub);
+            if (!w) continue;
+            ComPtr<IShellBrowser> b2;
+            ComPtr<IShellView> v2;
+            ViewOf(w.Get(), b2, v2);
+            pse::FolderViewState s;
+            pse::CaptureFolderView(v2.Get(), s);
+            Print(s);
+            Expect(Same(c, s), L"the subfolder remembered the layout");
+            w->Quit();
+            Pump(700);
+        }
+    }
+
+    // Storage.
+    pse::FolderViewState stored = a;
+    stored.name = L"Mods & \u00e9";
+    Expect(pse::StoreFolderView(stored), L"a view saves");
+    stored.columns[0].width = 301;
+    Expect(pse::StoreFolderView(stored), L"saving the same name replaces it");
+    auto list = pse::LoadFolderViews();
+    Expect(list.size() == 1 && list[0].name == stored.name && Same(stored, list[0]), L"it loads back identically, with an accented name");
+    Expect(pse::RemoveFolderView(stored.name) && pse::LoadFolderViews().empty(), L"it can be removed");
+    {
+        std::ofstream f(std::filesystem::path(pse::FolderViewsFilePath()), std::ios::binary);
+        f << "{ not json";
+    }
+    Expect(pse::LoadFolderViews().empty(), L"a damaged file loads as empty");
+    Expect(pse::StoreFolderView(stored) && pse::LoadFolderViews().size() == 1, L"saving after damage works");
+    Expect(GetFileAttributesW((pse::FolderViewsFilePath() + L".damaged").c_str()) != INVALID_FILE_ATTRIBUTES, L"the damaged file is kept aside");
+    wprintf(L"failures=%d\n", g_fail);
+    return g_fail ? 1 : 0;
+}
+}  // namespace views
+
+int NameWindowShot(const wchar_t* dllPath, const wchar_t* png) {
+    HMODULE dll = LoadLibraryW(dllPath);
+    auto run = dll ? reinterpret_cast<int(__stdcall*)(const wchar_t*)>(GetProcAddress(dll, "PseFolderViewNameSnapshot")) : nullptr;
+    return run ? run(png) : 2;
+}
+
 // The same 64 MB of stack the menu command runs with.
 int PapyrusList(const wchar_t* listPath, const wchar_t* data) {
     struct Args { const wchar_t* list; const wchar_t* data; } args{listPath, data};
@@ -322,6 +528,10 @@ int Registration() {
     Check(!Exists(classes + L"SystemFileAssociations\\.bsa\\shellex\\ContextMenuHandlers\\PluginShellExtensionBsaManager"), L"uninstall removes the BSA manager menu");
     Check(!Exists(classes + L"CLSID\\" + pse::kBsaManagerClsidString), L"uninstall removes the BSA manager class");
 
+    Check(pse::InstallFolderViewsMenu(HKEY_CURRENT_USER, classes, L"C:\\x.dll"), L"the Folder views menu installs");
+    Check(Read(classes + L"Directory\\Background\\shellex\\ContextMenuHandlers\\PluginShellExtensionFolderViews", nullptr) == pse::kFolderViewsMenuClsidString, L"the Folder views menu is on folder backgrounds");
+    pse::RemoveFolderViewsMenu(HKEY_CURRENT_USER, classes);
+    Check(!Exists(classes + L"Directory\\Background\\shellex\\ContextMenuHandlers\\PluginShellExtensionFolderViews") && !Exists(classes + L"CLSID\\" + pse::kFolderViewsMenuClsidString), L"uninstall removes the Folder views menu");
     Check(pse::InstallPapyrusMenu(HKEY_CURRENT_USER, classes, L"C:\\x.dll"), L"the Papyrus menu installs");
     for (const wchar_t* e : {L".pex", L".psc"}) Check(Read(classes + L"SystemFileAssociations\\" + e + L"\\shellex\\ContextMenuHandlers\\PluginShellExtensionPapyrus", nullptr) == pse::kPapyrusMenuClsidString, L"the Papyrus menu is on its extension");
     pse::RemovePapyrusMenu(HKEY_CURRENT_USER, classes);
@@ -609,6 +819,8 @@ int wmain(int argc, wchar_t** argv) {
     if (argc == 3 && !wcscmp(argv[1], L"--test")) return TestArchive(argv[2]);
     if (argc == 3 && !wcscmp(argv[1], L"--hash")) return Hash(argv[2]);
     if (argc == 6 && !wcscmp(argv[1], L"--hashwindow")) return HashWindow(argv[2], argv[3], argv[4], argv[5]);
+    if (argc == 3 && !wcscmp(argv[1], L"--folderviews")) return views::Run(argv[2]);
+    if (argc == 4 && !wcscmp(argv[1], L"--namewindow")) return NameWindowShot(argv[2], argv[3]);
     if (argc == 4 && !wcscmp(argv[1], L"--papyrus")) return PapyrusList(argv[2], argv[3]);
     if (argc == 5 && !wcscmp(argv[1], L"--propswindow")) return PropsWindow(argv[2], argv[3], argv[4]);
     if (argc == 5 && !wcscmp(argv[1], L"--reportwindow")) return ReportWindow(argv[2], argv[3], argv[4]);

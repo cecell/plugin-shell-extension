@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -31,6 +32,7 @@ constexpr int IDC_INPUT = 201, IDC_COMPARE = 202, IDC_CLOSE = 203, IDC_REPORT = 
 constexpr UINT_PTR kTimerCopied = 1;
 constexpr wchar_t kHashClass[] = L"PluginShellExtensionHashes";
 constexpr wchar_t kReportClass[] = L"PluginShellExtensionReport";
+constexpr wchar_t kNameClass[] = L"PluginShellExtensionFolderViewName";
 constexpr DWORD kDwmUseImmersiveDarkMode = 20;
 
 int Scale(int v, UINT dpi) { return MulDiv(v, static_cast<int>(dpi), 96); }
@@ -827,6 +829,175 @@ DWORD WINAPI TestThread(void* param) {
     FreeLibraryAndExitThread(module, 0);
 }
 
+// ---- The name box for Save current view as ----
+
+class NameWindow {
+public:
+    explicit NameWindow(std::wstring png) : png_(std::move(png)) {}
+
+    static void Register() {
+        WNDCLASSEXW wc{sizeof(wc)};
+        wc.lpfnWndProc = &NameWindow::StaticProc;
+        wc.hInstance = g_hInst;
+        wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        wc.lpszClassName = kNameClass;
+        RegisterClassExW(&wc);
+    }
+
+    HWND Create() { return CreateWindowExW(WS_EX_CONTROLPARENT, kNameClass, L"Save current view", WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN, 0, 0, 100, 100, nullptr, nullptr, g_hInst, this); }
+    const std::wstring& Name() const { return name_; }
+
+private:
+    static LRESULT CALLBACK StaticProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+        auto* self = reinterpret_cast<NameWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+        if (msg == WM_NCCREATE) {
+            self = static_cast<NameWindow*>(reinterpret_cast<CREATESTRUCTW*>(lp)->lpCreateParams);
+            self->hwnd_ = hwnd;
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+        }
+        return self ? self->Proc(msg, wp, lp) : DefWindowProcW(hwnd, msg, wp, lp);
+    }
+
+    int S(int v) const { return Scale(v, dpi_); }
+
+    void Paint(HDC dc) {
+        RECT rc;
+        GetClientRect(hwnd_, &rc);
+        HBRUSH back = CreateSolidBrush(theme_.window);
+        FillRect(dc, &rc, back);
+        DeleteObject(back);
+        HGDIOBJ old = SelectObject(dc, font_);
+        SetBkMode(dc, TRANSPARENT);
+        SetTextColor(dc, theme_.text);
+        RECT text{S(kPad), S(kPad), rc.right - S(kPad), S(kPad) + S(22)};
+        DrawTextW(dc, L"Name for this view:", -1, &text, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+        SelectObject(dc, old);
+    }
+
+    void UpdateSave() {
+        wchar_t text[64] = {};
+        GetWindowTextW(edit_, text, ARRAYSIZE(text));
+        bool any = false;
+        for (const wchar_t* p = text; *p; ++p) any = any || !iswspace(*p);
+        EnableWindow(save_, any);
+    }
+
+    LRESULT Proc(UINT msg, WPARAM wp, LPARAM lp) {
+        switch (msg) {
+            case WM_CREATE: {
+                dpi_ = GetDpiForWindow(hwnd_);
+                theme_ = CurrentTheme();
+                font_ = MessageFont(dpi_);
+                inputBrush_ = CreateSolidBrush(theme_.inputBack);
+                edit_ = CreateWindowExW(0, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_BORDER | ES_AUTOHSCROLL, S(kPad), S(kPad + 26), S(400), S(kInputH), hwnd_, CtrlId(IDC_INPUT), g_hInst, nullptr);
+                SendMessageW(edit_, EM_SETLIMITTEXT, 60, 0);
+                save_ = CreateWindowExW(0, L"BUTTON", L"Save", WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_DISABLED | BS_DEFPUSHBUTTON, S(kPad + 400 - 2 * kCompareW - 8), S(kPad + 26 + kInputH + 14), S(kCompareW), S(kButtonH), hwnd_, CtrlId(IDOK), g_hInst, nullptr);
+                cancel_ = CreateWindowExW(0, L"BUTTON", L"Cancel", WS_CHILD | WS_VISIBLE | WS_TABSTOP, S(kPad + 400 - kCompareW), S(kPad + 26 + kInputH + 14), S(kCompareW), S(kButtonH), hwnd_, CtrlId(IDCANCEL), g_hInst, nullptr);
+                for (HWND h : {edit_, save_, cancel_}) {
+                    SendMessageW(h, WM_SETFONT, reinterpret_cast<WPARAM>(font_), TRUE);
+                    SetWindowTheme(h, theme_.dark ? L"DarkMode_Explorer" : L"Explorer", nullptr);
+                }
+                BOOL dark = theme_.dark;
+                DwmSetWindowAttribute(hwnd_, kDwmUseImmersiveDarkMode, &dark, sizeof(dark));
+                RECT r{0, 0, S(428), S(kPad + 26 + kInputH + 14 + kButtonH + kPad)};
+                AdjustWindowRectExForDpi(&r, WS_CAPTION | WS_SYSMENU, FALSE, WS_EX_CONTROLPARENT, dpi_);
+                CenterOnCursorMonitor(hwnd_, r.right - r.left, r.bottom - r.top);
+                SetFocus(edit_);
+                if (!png_.empty()) PostMessageW(hwnd_, WM_APP_HASH, 0, 0);
+                return 0;
+            }
+            case WM_APP_HASH:
+                RedrawWindow(hwnd_, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
+                SaveWindowPng(hwnd_, png_, nullptr, nullptr);
+                DestroyWindow(hwnd_);
+                return 0;
+            case WM_ERASEBKGND:
+                return 1;
+            case WM_PAINT: {
+                PAINTSTRUCT ps;
+                HDC dc = BeginPaint(hwnd_, &ps);
+                Paint(dc);
+                EndPaint(hwnd_, &ps);
+                return 0;
+            }
+            case WM_PRINTCLIENT:
+                Paint(reinterpret_cast<HDC>(wp));
+                return 0;
+            case WM_CTLCOLOREDIT:
+                SetTextColor(reinterpret_cast<HDC>(wp), theme_.text);
+                SetBkColor(reinterpret_cast<HDC>(wp), theme_.inputBack);
+                return reinterpret_cast<LRESULT>(inputBrush_);
+            case WM_COMMAND:
+                if (LOWORD(wp) == IDC_INPUT && HIWORD(wp) == EN_CHANGE) {
+                    UpdateSave();
+                } else if (LOWORD(wp) == IDOK && IsWindowEnabled(save_)) {
+                    wchar_t text[64] = {};
+                    GetWindowTextW(edit_, text, ARRAYSIZE(text));
+                    name_ = text;
+                    while (!name_.empty() && iswspace(name_.back())) name_.pop_back();
+                    size_t start = 0;
+                    while (start < name_.size() && iswspace(name_[start])) ++start;
+                    name_.erase(0, start);
+                    DestroyWindow(hwnd_);
+                } else if (LOWORD(wp) == IDCANCEL) {
+                    DestroyWindow(hwnd_);
+                }
+                return 0;
+            case WM_DESTROY:
+                PostQuitMessage(0);
+                return 0;
+            case WM_NCDESTROY:
+                if (font_) DeleteObject(font_);
+                if (inputBrush_) DeleteObject(inputBrush_);
+                SetWindowLongPtrW(hwnd_, GWLP_USERDATA, 0);
+                break;
+        }
+        return DefWindowProcW(hwnd_, msg, wp, lp);
+    }
+
+    HWND hwnd_ = nullptr, edit_ = nullptr, save_ = nullptr, cancel_ = nullptr;
+    HFONT font_ = nullptr;
+    HBRUSH inputBrush_ = nullptr;
+    UINT dpi_ = 96;
+    Theme theme_ = CurrentTheme();
+    std::wstring png_, name_;
+};
+
+int g_nameUsers = 0;
+
+// Runs a job that talks to the user on its own thread.
+struct UserJob {
+    std::function<void()> work;
+    HMODULE module = nullptr;
+};
+
+DWORD WINAPI UserJobThread(void* param) {
+    std::unique_ptr<UserJob> job(static_cast<UserJob*>(param));
+    HRESULT co = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    {
+        ActivationContext act;
+        DpiScope dpi;
+        try {
+            job->work();
+        } catch (...) {
+        }
+    }
+    if (SUCCEEDED(co)) CoUninitialize();
+    HMODULE module = job->module;
+    job.reset();
+    FreeLibraryAndExitThread(module, 0);
+}
+
+void StartUserJob(std::function<void()> work) {
+    auto* job = new UserJob{std::move(work), AddModuleRef()};
+    if (HANDLE t = CreateThread(nullptr, 0, &UserJobThread, job, 0, nullptr)) {
+        CloseHandle(t);
+        return;
+    }
+    if (job->module) FreeLibrary(job->module);
+    delete job;
+}
+
 // Decompiling and compiling recurse with the depth of the script, and they
 // run inside Explorer, so they get far more stack than any real script needs.
 DWORD WINAPI PapyrusThread(void* param) {
@@ -949,6 +1120,54 @@ void ExtractBsasAsync(const std::vector<std::wstring>& paths, bool intoOwnFolder
 }
 
 void TestBsasAsync(const std::vector<std::wstring>& paths) { Start(&TestThread, new ActionArgs{paths, false}); }
+
+bool RunFolderViewNameWindow(std::wstring& name, const std::wstring& png) {
+    {
+        std::lock_guard<std::mutex> g(g_classLock);
+        if (g_nameUsers++ == 0) NameWindow::Register();
+    }
+    {
+        NameWindow window(png);
+        if (HWND hwnd = window.Create()) {
+            ShowWindow(hwnd, SW_SHOWNORMAL);
+            SetForegroundWindow(hwnd);
+            RunLoop(hwnd);
+            name = window.Name();
+        }
+    }
+    std::lock_guard<std::mutex> g(g_classLock);
+    if (--g_nameUsers == 0) UnregisterClassW(kNameClass, g_hInst);
+    return !name.empty();
+}
+
+void SaveFolderViewAsync(FolderViewState state) {
+    StartUserJob([state = std::move(state)]() mutable {
+        for (;;) {
+            std::wstring name;
+            if (!RunFolderViewNameWindow(name, L"")) return;
+            bool exists = false;
+            for (const FolderViewState& known : LoadFolderViews()) exists = exists || _wcsicmp(known.name.c_str(), name.c_str()) == 0;
+            if (exists) {
+                const std::wstring ask = L"A view named \"" + name + L"\" already exists. Replace it?";
+                if (MessageBoxW(nullptr, ask.c_str(), L"Folder views", MB_YESNO | MB_ICONQUESTION | MB_SETFOREGROUND) != IDYES) continue;
+            }
+            state.name = name;
+            if (!StoreFolderView(state)) MessageBoxW(nullptr, L"The view couldn't be saved.", L"Folder views", MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
+            return;
+        }
+    });
+}
+
+void RemoveFolderViewAsync(const std::wstring& name) {
+    StartUserJob([name] {
+        const std::wstring ask = L"Remove the saved view \"" + name + L"\"?";
+        if (MessageBoxW(nullptr, ask.c_str(), L"Folder views", MB_YESNO | MB_ICONQUESTION | MB_SETFOREGROUND) == IDYES) RemoveFolderView(name);
+    });
+}
+
+void ShowMessageAsync(const std::wstring& title, const std::wstring& text) {
+    StartUserJob([title, text] { MessageBoxW(nullptr, text.c_str(), title.c_str(), MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND); });
+}
 
 void PapyrusAsync(const std::vector<std::wstring>& paths, bool compile) {
     Start(&PapyrusThread, new ActionArgs{paths, compile}, 64u * 1024 * 1024);

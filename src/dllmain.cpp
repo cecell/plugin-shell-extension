@@ -12,6 +12,7 @@
 #include "asset_property_handler.h"
 #include "bsa_folder.h"
 #include "tool_menus.h"
+#include "folder_views_menu.h"
 #include "tool_windows.h"
 #include "property_handler.h"
 #include "property_window.h"
@@ -80,6 +81,7 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
     if (clsid == pse::kClsidBsaManager) return pse::CreateBsaManagerFactory(riid, ppv);
     if (clsid == pse::kClsidHashMenu) return pse::CreateHashMenuFactory(riid, ppv);
     if (clsid == pse::kClsidPapyrusMenu) return pse::CreatePapyrusMenuFactory(riid, ppv);
+    if (clsid == pse::kClsidFolderViewsMenu) return pse::CreateFolderViewsMenuFactory(riid, ppv);
     if (clsid == pse::kClsidContextMenu) return pse::CreateClassFactory(riid, ppv);
     if (clsid == pse::kClsidPropertyHandler) return pse::CreatePropertyHandlerFactory(riid, ppv);
     if (clsid == pse::kClsidAssetPropertyHandler) return pse::CreateAssetPropertyHandlerFactory(riid, ppv);
@@ -111,6 +113,16 @@ STDAPI DllInstall(BOOL install, PCWSTR cmdLine) {
             if (!pse::InstallHashMenu(HKEY_CURRENT_USER, L"Software\\Classes\\", ModulePath())) return E_FAIL;
         } else {
             pse::RemoveHashMenu(HKEY_CURRENT_USER, L"Software\\Classes\\");
+        }
+        return S_OK;
+    }
+    // regsvr32 /n /i:views PluginShellExtension.dll adds Folder views to the
+    // background of folders, for this user; add /u to remove it.
+    if (cmdLine && _wcsicmp(cmdLine, L"views") == 0) {
+        if (install) {
+            if (!pse::InstallFolderViewsMenu(HKEY_CURRENT_USER, L"Software\\Classes\\", ModulePath())) return E_FAIL;
+        } else {
+            pse::RemoveFolderViewsMenu(HKEY_CURRENT_USER, L"Software\\Classes\\");
         }
         return S_OK;
     }
@@ -155,4 +167,8 @@ extern "C" void CALLBACK SnapshotW(HWND, HINSTANCE, LPWSTR cmdLine, int) {
 
 // For tests: runs a window, saves a picture of it, and closes it.
 extern "C" int __stdcall PseHashSnapshot(const wchar_t* path, const wchar_t* png, const wchar_t* script) { return pse::RunHashWindow(path, png, script); }
+extern "C" int __stdcall PseFolderViewNameSnapshot(const wchar_t* png) {
+    std::wstring name;
+    return pse::RunFolderViewNameWindow(name, png) ? 0 : 1;
+}
 extern "C" int __stdcall PseReportSnapshot(const wchar_t* title, int status, const wchar_t* text, const wchar_t* png) { return pse::RunReportWindow(title, status, text, png); }
