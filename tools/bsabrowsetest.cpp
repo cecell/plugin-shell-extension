@@ -296,6 +296,11 @@ bool Same(const pse::FolderViewState& a, const pse::FolderViewState& b) {
     for (size_t i = 0; i < a.sort.size(); ++i) if (a.sort[i].key != b.sort[i].key || a.sort[i].direction != b.sort[i].direction) return false;
     return true;
 }
+std::vector<pse::FolderViewState> Saved() {
+    std::vector<pse::FolderViewState> out;
+    for (auto& v : pse::LoadFolderViews()) if (!v.shipped) out.push_back(v);
+    return out;
+}
 int Run(const std::wstring& root) {
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     auto web = Open(root);
@@ -402,21 +407,60 @@ int Run(const std::wstring& root) {
         }
     }
 
+    // The built-in presets, on a real window.
+    {
+        auto presets = pse::LoadFolderViews();
+        Expect(presets.size() == 6, L"six presets ship");
+        auto win = Open(root);
+        Expect(win != nullptr, L"a window opened for the presets");
+        if (win) {
+            ComPtr<IShellBrowser> pb;
+            ComPtr<IShellView> pv;
+            ViewOf(win.Get(), pb, pv);
+            for (const auto& p : presets) {
+                HRESULT phr = pse::ApplyFolderView(pv.Get(), p);
+                Pump(350);
+                ViewOf(win.Get(), pb, pv);
+                pse::FolderViewState r;
+                pse::CaptureFolderView(pv.Get(), r);
+                wprintf(L"preset %ls hr=0x%08lx wanted %zu columns, got %zu\n", p.name.c_str(), static_cast<unsigned long>(phr), p.columns.size(), r.columns.size());
+                Expect(p.shipped && r.mode == FVM_DETAILS && r.groupKey.empty() && r.columns.size() == p.columns.size() && r.sort.size() == 1 && r.sort[0].direction == 1, L"details, not grouped, every column, sorted by name");
+            }
+            pse::FolderViewState custom = presets[0];
+            custom.name = L"plugins";
+            custom.shipped = false;
+            custom.columns.resize(2);
+            Expect(pse::StoreFolderView(custom), L"saving under a preset's name works");
+            auto after = pse::LoadFolderViews();
+            size_t matches = 0, cols = 0;
+            bool shippedStill = false;
+            for (auto& v : after) if (!_wcsicmp(v.name.c_str(), L"plugins")) { ++matches; cols = v.columns.size(); shippedStill = v.shipped; }
+            Expect(after.size() == 6 && matches == 1 && cols == 2 && !shippedStill, L"that replaces the preset, with no duplicate");
+            Expect(pse::RemoveFolderView(L"plugins"), L"it can be removed");
+            after = pse::LoadFolderViews();
+            matches = 0; cols = 0; shippedStill = false;
+            for (auto& v : after) if (!_wcsicmp(v.name.c_str(), L"plugins")) { ++matches; cols = v.columns.size(); shippedStill = v.shipped; }
+            Expect(after.size() == 6 && matches == 1 && cols == 17 && shippedStill, L"removing it brings the preset back");
+            win->Quit();
+            Pump(800);
+        }
+    }
+
     // Storage.
     pse::FolderViewState stored = a;
     stored.name = L"Mods & \u00e9";
     Expect(pse::StoreFolderView(stored), L"a view saves");
     stored.columns[0].width = 301;
     Expect(pse::StoreFolderView(stored), L"saving the same name replaces it");
-    auto list = pse::LoadFolderViews();
+    auto list = Saved();
     Expect(list.size() == 1 && list[0].name == stored.name && Same(stored, list[0]), L"it loads back identically, with an accented name");
-    Expect(pse::RemoveFolderView(stored.name) && pse::LoadFolderViews().empty(), L"it can be removed");
+    Expect(pse::RemoveFolderView(stored.name) && Saved().empty(), L"it can be removed");
     {
         std::ofstream f(std::filesystem::path(pse::FolderViewsFilePath()), std::ios::binary);
         f << "{ not json";
     }
-    Expect(pse::LoadFolderViews().empty(), L"a damaged file loads as empty");
-    Expect(pse::StoreFolderView(stored) && pse::LoadFolderViews().size() == 1, L"saving after damage works");
+    Expect(Saved().empty(), L"a damaged file loads as empty");
+    Expect(pse::StoreFolderView(stored) && Saved().size() == 1, L"saving after damage works");
     Expect(GetFileAttributesW((pse::FolderViewsFilePath() + L".damaged").c_str()) != INVALID_FILE_ATTRIBUTES, L"the damaged file is kept aside");
     wprintf(L"failures=%d\n", g_fail);
     return g_fail ? 1 : 0;

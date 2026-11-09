@@ -874,7 +874,7 @@ private:
         SetBkMode(dc, TRANSPARENT);
         SetTextColor(dc, theme_.text);
         RECT text{S(kPad), S(kPad), rc.right - S(kPad), S(kPad) + S(22)};
-        DrawTextW(dc, L"Name for this view:", -1, &text, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+        DrawTextW(dc, L"Name for this view (a preset's name replaces that preset):", -1, &text, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
         SelectObject(dc, old);
     }
 

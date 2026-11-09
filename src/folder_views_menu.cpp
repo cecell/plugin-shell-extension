@@ -96,10 +96,12 @@ public:
                 for (UINT i = 0; i < count; ++i) {
                     const std::wstring label = MenuText(views_[i].name);
                     AppendMenuW(below, MF_STRING, first + 1 + count + i, label.c_str());
-                    AppendMenuW(remove, MF_STRING, first + 1 + 2 * count + i, label.c_str());
+                    if (!views_[i].shipped) AppendMenuW(remove, MF_STRING, first + 1 + 2 * count + i, label.c_str());
                 }
                 AppendMenuW(sub, MF_POPUP | MF_STRING, reinterpret_cast<UINT_PTR>(below), L"Apply to subfolders");
-                AppendMenuW(sub, MF_POPUP | MF_STRING, reinterpret_cast<UINT_PTR>(remove), L"Remove");
+                // Only what the user saved can be removed; a built-in preset always stays.
+                if (GetMenuItemCount(remove) > 0) AppendMenuW(sub, MF_POPUP | MF_STRING, reinterpret_cast<UINT_PTR>(remove), L"Remove");
+                else DestroyMenu(remove);
             }
             InsertMenuW(menu, index, MF_BYPOSITION | MF_POPUP | MF_STRING, reinterpret_cast<UINT_PTR>(sub), kTitle);
             return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 1 + 3 * count);

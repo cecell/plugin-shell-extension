@@ -33,6 +33,49 @@ constexpr wchar_t kWalkClass[] = L"PluginShellExtensionFolderViewWalk";
 
 std::mutex g_fileLock;
 
+#define PSE_COLUMN L"Cecell.PluginShellExtension."
+
+// Name, type, size and date come first in every preset, then every column
+// that this format has. A column that isn't installed is left out when applied.
+struct PresetDefinition {
+    const wchar_t* name;
+    std::vector<const wchar_t*> columns;
+};
+
+const std::vector<PresetDefinition>& PresetDefinitions() {
+    static const std::vector<PresetDefinition> presets = {
+        {L"Plugins",
+         {PSE_COLUMN L"Flags", PSE_COLUMN L"Light", PSE_COLUMN L"ESLable", PSE_COLUMN L"Dirty", PSE_COLUMN L"ItmCount", PSE_COLUMN L"FormCount",
+          PSE_COLUMN L"RecordCount", PSE_COLUMN L"MasterCount", PSE_COLUMN L"Masters", PSE_COLUMN L"DeletedCount", PSE_COLUMN L"DeletedNavmeshes", PSE_COLUMN L"HeaderVersion", PSE_COLUMN L"FormVersion"}},
+        {L"Textures",
+         {L"System.Image.Dimensions", L"System.Image.HorizontalSize", L"System.Image.VerticalSize", L"System.Image.BitDepth", PSE_COLUMN L"Mipmaps", L"System.Image.HorizontalResolution",
+          L"System.Image.VerticalResolution"}},
+        {L"Meshes", {}},
+        {L"Audio",
+         {L"System.Media.Duration", L"System.Audio.EncodingBitrate", PSE_COLUMN L"SampleRate", PSE_COLUMN L"Channels", L"System.Audio.SampleRate", L"System.Audio.ChannelCount", PSE_COLUMN L"AudioFormat",
+          PSE_COLUMN L"FuzVersion"}},
+        {L"Scripts", {}},
+        {L"Archives", {}},
+    };
+    return presets;
+}
+
+std::vector<FolderViewState> ShippedViews() {
+    std::vector<FolderViewState> views;
+    for (const PresetDefinition& preset : PresetDefinitions()) {
+        FolderViewState state;
+        state.name = preset.name;
+        state.mode = FVM_DETAILS;
+        state.iconSize = 16;
+        state.shipped = true;
+        for (const wchar_t* key : {L"System.ItemNameDisplay", L"System.ItemTypeText", L"System.Size", L"System.DateModified"}) state.columns.push_back({key, 0});
+        for (const wchar_t* key : preset.columns) state.columns.push_back({key, 0});
+        state.sort.push_back({L"System.ItemNameDisplay", 1});
+        views.push_back(std::move(state));
+    }
+    return views;
+}
+
 std::string Utf8(const std::wstring& text) {
     if (text.empty()) return {};
     const int size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
@@ -54,7 +97,11 @@ std::wstring KeyText(const PROPERTYKEY& key) {
     return SUCCEEDED(PSStringFromPropertyKey(key, text, ARRAYSIZE(text))) ? text : L"";
 }
 
-bool KeyFrom(const std::wstring& text, PROPERTYKEY& key) { return SUCCEEDED(PSPropertyKeyFromString(text.c_str(), &key)); }
+// A saved layout holds "{fmtid} pid"; a built-in preset holds the property's name.
+bool KeyFrom(const std::wstring& text, PROPERTYKEY& key) {
+    if (!text.empty() && text[0] == L'{') return SUCCEEDED(PSPropertyKeyFromString(text.c_str(), &key));
+    return SUCCEEDED(PSGetPropertyKeyFromName(text.c_str(), &key));
+}
 
 bool IsNullKey(const PROPERTYKEY& key) { return key.fmtid == GUID_NULL && key.pid == 0; }
 
@@ -307,7 +354,13 @@ std::wstring FolderViewsFilePath() {
 
 std::vector<FolderViewState> LoadFolderViews() {
     std::lock_guard<std::mutex> lock(g_fileLock);
-    return ReadViews(nullptr);
+    std::vector<FolderViewState> views = ReadViews(nullptr);
+    for (FolderViewState& preset : ShippedViews()) {
+        const bool replaced = std::any_of(views.begin(), views.end(), [&](const FolderViewState& v) { return _wcsicmp(v.name.c_str(), preset.name.c_str()) == 0; });
+        if (!replaced) views.push_back(std::move(preset));
+    }
+    std::sort(views.begin(), views.end(), [](const FolderViewState& a, const FolderViewState& b) { return _wcsicmp(a.name.c_str(), b.name.c_str()) < 0; });
+    return views;
 }
 
 bool StoreFolderView(const FolderViewState& state) {

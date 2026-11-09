@@ -29,10 +29,13 @@ struct FolderViewState {
     std::vector<FolderViewSort> sort;
     std::wstring groupKey;  // empty: not grouped
     bool groupAscending = true;
+    bool shipped = false;  // one of the built-in presets, not saved by the user
 };
 
-// Saved layouts, sorted by name. The file is folder_views.json next to the
-// extension's other settings in %LOCALAPPDATA%\Plugin Shell Extension.
+// The built-in presets and the saved layouts, sorted by name. A layout saved
+// under a preset's name replaces that preset; removing it brings the preset
+// back. The file is folder_views.json next to the extension's other settings
+// in %LOCALAPPDATA%\Plugin Shell Extension.
 std::wstring FolderViewsFilePath();
 std::vector<FolderViewState> LoadFolderViews();
 bool StoreFolderView(const FolderViewState& state);  // replaces one of the same name
