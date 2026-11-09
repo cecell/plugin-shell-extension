@@ -207,7 +207,8 @@ The installer is built with [Inno Setup](https://jrsoftware.org/),
 Copyright (C) Jordan Russell.
 
 Localized strings packed in BSA archives (including LZ4-compressed ones) are
-read with [bsa-reader](https://github.com/cecell/bsa-reader) (GPL-3.0).
+read with [bsa-reader](https://github.com/cecell/bsa-reader) (GPL-3.0). `.tga` and `.fuz` headers are read with
+[beth-asset-metadata](https://github.com/cecell/beth-asset-metadata) (GPL-3.0).
 
 The inflate code in `src/inflate.cpp` is altered from puff, by Mark Adler, part
 of the [zlib](https://github.com/madler/zlib) distribution. Its notice is in that
@@ -237,6 +238,7 @@ Outputs, in `build\`:
 - `PluginShellExtension-<version>-setup.exe`: the installer
 - `plugininfo.exe <plugin>...`: prints the same fields, plus a self-check that the records and groups walked add up to the header count
 - `menutest.exe <plugin> [--invoke]`: builds Explorer's right-click menu for a file and checks the item is there (and opens)
+- `assetproptest.exe <dll> <file>...`: the same for `.tga` and `.fuz` files, through the asset property handler
 - `proptest.exe <dll> <plugin>...`: loads the property handler from the DLL without registering it, feeds it a file the way Explorer does, and prints every column value
 
 ### Testing without installing
@@ -268,6 +270,7 @@ Debugging switches:
 - `src/context_menu.*`: the right-click menu handler
 - `src/hardlink_menu.*`: the optional Hardlink menu on every file (its own COM class, registered only by the setup task)
 - `src/property_handler.*`: the Explorer property handler behind the columns, details pane and tooltip
+- `src/asset_property_handler.*`: fills Windows' own Dimensions, Duration, Bit rate and similar columns for `.tga` and `.fuz`
 - `src/registration.*`: registry layout for `regsvr32`; the installer writes the same keys
 - `src/dllmain.cpp`: COM exports and the `rundll32` entry points
 - `installer/PluginShellExtension.iss`: the Inno Setup installer

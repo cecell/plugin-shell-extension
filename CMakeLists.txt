@@ -21,6 +21,13 @@ FetchContent_Declare(bsa_reader
     GIT_REPOSITORY https://github.com/cecell/bsa-reader.git
     GIT_TAG bbff0cbc5cd04d39bb3b50c470c579669c027dbf)  # v0.1.1
 FetchContent_MakeAvailable(bsa_reader)
+# beth-asset-metadata (GPL-3.0, github.com/cecell/beth-asset-metadata): header
+# facts for the .tga and .fuz property handler. Pinned to the commit of tag
+# v0.4.0; library changes go to that repo, then bump this pin.
+FetchContent_Declare(asset_metadata
+    GIT_REPOSITORY https://github.com/cecell/beth-asset-metadata.git
+    GIT_TAG 9d0c51a3cb43866d9e0e2118a6f73a2c83074057)  # v0.4.0
+FetchContent_MakeAvailable(asset_metadata)
 
 add_compile_definitions(UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00
     PSE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR} PSE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
@@ -40,6 +47,7 @@ add_library(PluginShellExtension SHARED
     src/hardlink_menu.cpp
     src/property_window.cpp
     src/property_handler.cpp
+    src/asset_property_handler.cpp
     src/embedded_patterns.cpp
     src/disk_cache.cpp
     src/PluginShellExtension.def
@@ -48,7 +56,7 @@ add_library(PluginShellExtension SHARED
 # The ITM pattern catalog is compiled into the DLL as a resource.
 set_source_files_properties(src/PluginShellExtension.rc PROPERTIES
     OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/data/itm_patterns.json)
-target_link_libraries(PluginShellExtension PRIVATE psecore psepattern comctl32 uxtheme shell32 ole32 oleaut32 propsys
+target_link_libraries(PluginShellExtension PRIVATE psecore psepattern asset::metadata comctl32 uxtheme shell32 ole32 oleaut32 propsys
     windowscodecs shlwapi dwmapi)
 
 # Subrecord pattern engine and the ITM check.
@@ -71,6 +79,9 @@ target_link_libraries(plugininfo PRIVATE psecore)
 
 add_executable(proptest tools/proptest.cpp)
 target_link_libraries(proptest PRIVATE psecore shell32 ole32 shlwapi)
+
+add_executable(assetproptest tools/assetproptest.cpp)
+target_link_libraries(assetproptest PRIVATE psecore shell32 ole32 shlwapi propsys)
 
 add_executable(menutest tools/menutest.cpp)
 target_link_libraries(menutest PRIVATE psecore shell32 ole32)

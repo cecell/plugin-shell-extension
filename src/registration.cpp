@@ -106,6 +106,20 @@ HRESULT RegisterPropertyHandler(const std::wstring& dllPath, const std::wstring&
             st = SetString(HKEY_LOCAL_MACHINE, std::wstring(kPropertyHandlers) + ext, nullptr,
                            kPropertyHandlerClsidString);
     }
+    // The asset handler reads a stream, so Windows can keep it out of Explorer's
+    // process. An extension another handler already owns is left alone.
+    const std::wstring assetKey = std::wstring(kClasses) + L"CLSID\\" + kAssetPropertyHandlerClsidString;
+    if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, assetKey, nullptr, L"Plugin Shell Extension asset property handler");
+    if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, assetKey + L"\\InprocServer32", nullptr, dllPath);
+    if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, assetKey + L"\\InprocServer32", L"ThreadingModel", L"Both");
+    for (const wchar_t* ext : kAssetExtensions) {
+        wchar_t current[64] = {};
+        DWORD size = sizeof(current);
+        const std::wstring key = std::wstring(kPropertyHandlers) + ext;
+        const bool taken = RegGetValueW(HKEY_LOCAL_MACHINE, key.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, current, &size) == ERROR_SUCCESS &&
+                           current[0] && _wcsicmp(current, kAssetPropertyHandlerClsidString) != 0;
+        if (st == ERROR_SUCCESS && !taken) st = SetString(HKEY_LOCAL_MACHINE, key, nullptr, kAssetPropertyHandlerClsidString);
+    }
     if (st != ERROR_SUCCESS) {
         UnregisterPropertyHandler(schemaPath);
         return HRESULT_FROM_WIN32(st);
@@ -125,6 +139,16 @@ HRESULT UnregisterPropertyHandler(const std::wstring& schemaPath) {
             _wcsicmp(value, kPropertyHandlerClsidString) == 0)
             RegDeleteKeyW(HKEY_LOCAL_MACHINE, key.c_str());
     }
+    for (const wchar_t* ext : kAssetExtensions) {
+        std::wstring key = std::wstring(kPropertyHandlers) + ext;
+        wchar_t value[64] = {};
+        DWORD size = sizeof(value);
+        if (RegGetValueW(HKEY_LOCAL_MACHINE, key.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, value, &size) == ERROR_SUCCESS &&
+            _wcsicmp(value, kAssetPropertyHandlerClsidString) == 0)
+            RegDeleteKeyW(HKEY_LOCAL_MACHINE, key.c_str());
+    }
+    RegDeleteTreeW(HKEY_LOCAL_MACHINE, (std::wstring(kClasses) + L"CLSID\\" + kAssetPropertyHandlerClsidString).c_str());
+    RegDeleteKeyW(HKEY_LOCAL_MACHINE, (std::wstring(kClasses) + L"CLSID\\" + kAssetPropertyHandlerClsidString).c_str());
     RegDeleteTreeW(HKEY_LOCAL_MACHINE, (std::wstring(kClasses) + L"CLSID\\" + kPropertyHandlerClsidString).c_str());
     RegDeleteKeyW(HKEY_LOCAL_MACHINE, (std::wstring(kClasses) + L"CLSID\\" + kPropertyHandlerClsidString).c_str());
     PSUnregisterPropertySchema(schemaPath.c_str());

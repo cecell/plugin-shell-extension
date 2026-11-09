@@ -30,6 +30,8 @@
 ; Details pane (Alt+Shift+P) and hover tooltip contents.
 #define PreviewDetails "prop:" + P + "HeaderVersion;" + P + "FormVersion;" + P + "FormCount;" + P + "RecordCount;" + P + "Flags;" + P + "Light;" + P + "MasterCount;" + P + "DeletedCount;" + P + "DeletedNavmeshes;" + P + "ItmCount;" + P + "Dirty;" + P + "ESLable;" + P + "ESLNote;" + P + "Masters;*System.DateModified;*System.Size;*System.DateCreated"
 #define InfoTip "prop:System.ItemTypeText;System.Size;System.DateModified;" + P + "FormCount;" + P + "TipStatus;" + P + "Masters;" + P + "ESLNote"
+#define TgaDetails "prop:System.ItemTypeText;System.Size;System.DateModified;System.Image.Dimensions;System.Image.BitDepth"
+#define FuzDetails "prop:System.ItemTypeText;System.Size;System.DateModified;System.Media.Duration;System.Audio.EncodingBitrate;System.Audio.SampleRate;System.Audio.ChannelCount"
 
 [Setup]
 AppId={{F78B36DB-E7CD-4FA3-B923-5643F4FD3ADB}
@@ -121,6 +123,14 @@ Root: HKA; Subkey: "{#Sfa}\.esm"; ValueType: string; ValueName: "PreviewDetails"
 Root: HKA; Subkey: "{#Sfa}\.esm"; ValueType: string; ValueName: "InfoTip"; ValueData: "{#InfoTip}"; Flags: uninsdeletevalue; Tasks: columns
 Root: HKA; Subkey: "{#Sfa}\.esl"; ValueType: string; ValueName: "PreviewDetails"; ValueData: "{#PreviewDetails}"; Flags: uninsdeletevalue; Tasks: columns
 Root: HKA; Subkey: "{#Sfa}\.esl"; ValueType: string; ValueName: "InfoTip"; ValueData: "{#InfoTip}"; Flags: uninsdeletevalue; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.tga"; Flags: uninsdeletekeyifempty; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.tga"; ValueType: string; ValueName: "PreviewDetails"; ValueData: "{#TgaDetails}"; Flags: uninsdeletevalue; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.tga"; ValueType: string; ValueName: "InfoTip"; ValueData: "{#TgaDetails}"; Flags: uninsdeletevalue; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.tga"; ValueType: string; ValueName: "FullDetails"; ValueData: "{#TgaDetails}"; Flags: uninsdeletevalue; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.fuz"; Flags: uninsdeletekeyifempty; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.fuz"; ValueType: string; ValueName: "PreviewDetails"; ValueData: "{#FuzDetails}"; Flags: uninsdeletevalue; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.fuz"; ValueType: string; ValueName: "InfoTip"; ValueData: "{#FuzDetails}"; Flags: uninsdeletevalue; Tasks: columns
+Root: HKA; Subkey: "{#Sfa}\.fuz"; ValueType: string; ValueName: "FullDetails"; ValueData: "{#FuzDetails}"; Flags: uninsdeletevalue; Tasks: columns
 
 [Run]
 Filename: "{app}\README.md"; Description: "Open the README"; Flags: postinstall shellexec skipifsilent nowait

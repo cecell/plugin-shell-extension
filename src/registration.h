@@ -14,6 +14,8 @@ inline constexpr wchar_t kClsidString[] = L"{1D4348E0-3A45-489E-8022-6A2A883E9D9
 inline constexpr wchar_t kHandlerName[] = L"PluginShellExtension";
 inline constexpr wchar_t kHandlerDescription[] = L"Plugin Shell Extension context menu";
 inline constexpr const wchar_t* kExtensions[] = {L".esp", L".esm", L".esl"};
+// The asset property handler. Not .dds, .xwm or .wav: other handlers own those.
+inline constexpr const wchar_t* kAssetExtensions[] = {L".tga", L".fuz"};
 
 // root is HKEY_CURRENT_USER (per-user) or HKEY_LOCAL_MACHINE (all users).
 HRESULT RegisterHandler(HKEY root, const std::wstring& dllPath);
@@ -23,6 +25,10 @@ HRESULT UnregisterHandler(HKEY root);
 // {E0BA20B2-0391-45F5-80C3-07E306E945E9}
 inline constexpr GUID kClsidPropertyHandler = {0xe0ba20b2, 0x0391, 0x45f5, {0x80, 0xc3, 0x07, 0xe3, 0x06, 0xe9, 0x45, 0xe9}};
 inline constexpr wchar_t kPropertyHandlerClsidString[] = L"{E0BA20B2-0391-45F5-80C3-07E306E945E9}";
+
+// {D19B8F6E-787D-498A-8D3D-E90A027561D1}
+inline constexpr GUID kClsidAssetPropertyHandler = {0xd19b8f6e, 0x787d, 0x498a, {0x8d, 0x3d, 0xe9, 0x0a, 0x02, 0x75, 0x61, 0xd1}};
+inline constexpr wchar_t kAssetPropertyHandlerClsidString[] = L"{D19B8F6E-787D-498A-8D3D-E90A027561D1}";
 inline constexpr wchar_t kSchemaFileName[] = L"PluginShellExtension.propdesc";
 
 // Machine-wide only: Windows reads property handlers and schemas from HKLM,
