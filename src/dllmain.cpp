@@ -2,6 +2,7 @@
 // points for testing without installing.
 #include <windows.h>
 #include <shellapi.h>
+#include <shlobj.h>
 
 #include <string>
 
@@ -9,6 +10,7 @@
 #include "debug_log.h"
 #include "hardlink_menu.h"
 #include "asset_property_handler.h"
+#include "bsa_folder.h"
 #include "property_handler.h"
 #include "property_window.h"
 #include "registration.h"
@@ -72,6 +74,7 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
     pse::DebugLog(L"DllGetClassObject menu=%d props=%d", clsid == pse::kClsidContextMenu,
                  clsid == pse::kClsidPropertyHandler || clsid == pse::kClsidAssetPropertyHandler ||
                  clsid == pse::kClsidDdsPropertyHandler);
+    if (clsid == pse::kClsidBsaFolder) return pse::CreateBsaFolderFactory(riid, ppv);
     if (clsid == pse::kClsidContextMenu) return pse::CreateClassFactory(riid, ppv);
     if (clsid == pse::kClsidPropertyHandler) return pse::CreatePropertyHandlerFactory(riid, ppv);
     if (clsid == pse::kClsidAssetPropertyHandler) return pse::CreateAssetPropertyHandlerFactory(riid, ppv);
@@ -95,6 +98,17 @@ STDAPI DllInstall(BOOL install, PCWSTR cmdLine) {
         std::wstring dll = ModulePath();
         std::wstring schema = dll.substr(0, dll.find_last_of(L'\\') + 1) + pse::kSchemaFileName;
         return install ? pse::RegisterPropertyHandler(dll, schema) : pse::UnregisterPropertyHandler(schema);
+    }
+    // regsvr32 /n /i:bsa PluginShellExtension.dll browses .bsa files as folders,
+    // for this user; add /u to remove it.
+    if (cmdLine && _wcsicmp(cmdLine, L"bsa") == 0) {
+        if (install) {
+            if (!pse::InstallBsaBrowser(HKEY_CURRENT_USER, L"Software\\Classes\\", L".bsa", ModulePath())) return E_FAIL;
+        } else {
+            pse::RemoveBsaBrowser(HKEY_CURRENT_USER, L"Software\\Classes\\", L".bsa");
+        }
+        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+        return S_OK;
     }
     HKEY root = (cmdLine && _wcsicmp(cmdLine, L"machine") == 0) ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
     return install ? pse::RegisterHandler(root, ModulePath()) : pse::UnregisterHandler(root);

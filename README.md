@@ -238,6 +238,7 @@ Outputs, in `build\`:
 - `PluginShellExtension-<version>-setup.exe`: the installer
 - `plugininfo.exe <plugin>...`: prints the same fields, plus a self-check that the records and groups walked add up to the header count
 - `menutest.exe <plugin> [--invoke]`: builds Explorer's right-click menu for a file and checks the item is there (and opens)
+- `bsabrowsetest.exe`: walks archives through the BSA folder, and drives it in Windows' real folder view
 - `assetproptest.exe <dll> <file>...`: the same for `.tga` and `.fuz` files, through the asset property handler
 - `proptest.exe <dll> <plugin>...`: loads the property handler from the DLL without registering it, feeds it a file the way Explorer does, and prints every column value
 
@@ -270,6 +271,7 @@ Debugging switches:
 - `src/context_menu.*`: the right-click menu handler
 - `src/hardlink_menu.*`: the optional Hardlink menu on every file (its own COM class, registered only by the setup task)
 - `src/property_handler.*`: the Explorer property handler behind the columns, details pane and tooltip
+- `src/bsa_folder.*`: shows a `.bsa` as a read-only folder in Explorer; files are copied out as virtual files
 - `src/asset_property_handler.*`: fills Windows' own Dimensions, Duration, Bit rate and similar columns for `.tga` and `.fuz`, and adds a Mipmaps column for `.dds` on top of Windows' own handler
 - `src/registration.*`: registry layout for `regsvr32`; the installer writes the same keys
 - `src/dllmain.cpp`: COM exports and the `rundll32` entry points

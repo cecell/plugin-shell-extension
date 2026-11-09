@@ -82,6 +82,70 @@ namespace {
 const wchar_t kPropertyHandlers[] = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PropertySystem\\PropertyHandlers\\";
 }
 
+namespace {
+// Windows' own "open this as a folder" command, the one zip files use.
+const wchar_t kExecuteFolder[] = L"{11dbb47c-a525-400b-9e80-a54615a090c0}";
+const wchar_t kExplorerCommand[] = L"%SystemRoot%\\Explorer.exe /idlist,%I,%L";
+}  // namespace
+
+bool InstallBsaBrowser(HKEY root, const std::wstring& classes, const std::wstring& ext, const std::wstring& dllPath) {
+    const std::wstring clsid = classes + L"CLSID\\" + kBsaFolderClsidString;
+    const std::wstring prog = classes + kBsaProgId;
+    const std::wstring extKey = classes + ext;
+    const std::wstring verb = classes + L"SystemFileAssociations\\" + ext + L"\\shell\\BrowseContents";
+    LSTATUS st = SetString(root, clsid, nullptr, L"Plugin Shell Extension BSA folder");
+    if (st == ERROR_SUCCESS) st = SetString(root, clsid + L"\\InprocServer32", nullptr, dllPath);
+    if (st == ERROR_SUCCESS) st = SetString(root, clsid + L"\\InprocServer32", L"ThreadingModel", L"Apartment");
+    if (st == ERROR_SUCCESS) {
+        const DWORD attributes = SFGAO_FOLDER | SFGAO_BROWSABLE;
+        st = RegSetKeyValueW(root, (clsid + L"\\ShellFolder").c_str(), L"Attributes", REG_DWORD, &attributes, sizeof(attributes));
+    }
+    // Without this category, Windows never treats the file as a folder.
+    if (st == ERROR_SUCCESS) st = SetString(root, clsid + L"\\Implemented Categories\\{00021490-0000-0000-C000-000000000046}", nullptr, L"");
+    if (st == ERROR_SUCCESS) st = SetString(root, prog, nullptr, L"Bethesda archive");
+    if (st == ERROR_SUCCESS) st = SetString(root, prog + L"\\CLSID", nullptr, kBsaFolderClsidString);
+    if (st == ERROR_SUCCESS) st = SetString(root, prog + L"\\shell\\open\\command", nullptr, kExplorerCommand);
+    if (st == ERROR_SUCCESS) st = SetString(root, prog + L"\\shell\\open\\command", L"DelegateExecute", kExecuteFolder);
+    if (st == ERROR_SUCCESS) st = SetString(root, verb, nullptr, L"Browse contents");
+    if (st == ERROR_SUCCESS) st = SetString(root, verb + L"\\command", nullptr, kExplorerCommand);
+    if (st == ERROR_SUCCESS) st = SetString(root, verb + L"\\command", L"DelegateExecute", kExecuteFolder);
+    wchar_t current[256] = {};
+    DWORD size = sizeof(current);
+    const bool had = RegGetValueW(root, extKey.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, current, &size) == ERROR_SUCCESS && current[0];
+    if (st == ERROR_SUCCESS && had && _wcsicmp(current, kBsaProgId) != 0) st = SetString(root, prog, kPreviousProgIdValue, current);
+    if (st == ERROR_SUCCESS) st = SetString(root, extKey, nullptr, kBsaProgId);
+    if (st == ERROR_SUCCESS) st = RegSetKeyValueW(root, (extKey + L"\\OpenWithProgids").c_str(), kBsaProgId, REG_NONE, nullptr, 0);
+    if (st != ERROR_SUCCESS) {
+        RemoveBsaBrowser(root, classes, ext);
+        return false;
+    }
+    return true;
+}
+
+void RemoveBsaBrowser(HKEY root, const std::wstring& classes, const std::wstring& ext) {
+    const std::wstring clsid = classes + L"CLSID\\" + kBsaFolderClsidString;
+    const std::wstring prog = classes + kBsaProgId;
+    const std::wstring extKey = classes + ext;
+    const std::wstring verb = classes + L"SystemFileAssociations\\" + ext + L"\\shell\\BrowseContents";
+    wchar_t current[256] = {};
+    DWORD size = sizeof(current);
+    if (RegGetValueW(root, extKey.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, current, &size) == ERROR_SUCCESS && _wcsicmp(current, kBsaProgId) == 0) {
+        wchar_t previous[256] = {};
+        size = sizeof(previous);
+        if (RegGetValueW(root, prog.c_str(), kPreviousProgIdValue, RRF_RT_REG_SZ, nullptr, previous, &size) == ERROR_SUCCESS && previous[0])
+            SetString(root, extKey, nullptr, previous);
+        else
+            RegDeleteKeyValueW(root, extKey.c_str(), nullptr);
+    }
+    RegDeleteKeyValueW(root, (extKey + L"\\OpenWithProgids").c_str(), kBsaProgId);
+    RegDeleteTreeW(root, verb.c_str());
+    RegDeleteKeyW(root, verb.c_str());
+    RegDeleteTreeW(root, prog.c_str());
+    RegDeleteKeyW(root, prog.c_str());
+    RegDeleteTreeW(root, clsid.c_str());
+    RegDeleteKeyW(root, clsid.c_str());
+}
+
 bool InstallDdsHandler(HKEY root, const std::wstring& classes, const std::wstring& handlers, const std::wstring& dllPath) {
     const std::wstring handlerKey = handlers + L".dds";
     const std::wstring clsidKey = classes + L"CLSID\\" + kDdsPropertyHandlerClsidString;

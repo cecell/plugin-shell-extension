@@ -41,6 +41,20 @@ inline constexpr GUID kClsidWindowsImageHandler = {0xa38b883c, 0x1682, 0x497e, {
 // Under our CLSID: the handler we replaced, so it can be called and put back.
 inline constexpr wchar_t kWrappedHandlerValue[] = L"WrappedHandler";
 
+// Browsing .bsa as a folder.
+// {B0F2F3B6-3E4A-4F1E-9C57-2A8D61C0E4A7}
+inline constexpr GUID kClsidBsaFolder = {0xb0f2f3b6, 0x3e4a, 0x4f1e, {0x9c, 0x57, 0x2a, 0x8d, 0x61, 0xc0, 0xe4, 0xa7}};
+inline constexpr wchar_t kBsaFolderClsidString[] = L"{B0F2F3B6-3E4A-4F1E-9C57-2A8D61C0E4A7}";
+inline constexpr wchar_t kBsaProgId[] = L"PluginShellExtension.BSA";
+// Under our type: what the extension pointed at before, to put back on removal.
+inline constexpr wchar_t kPreviousProgIdValue[] = L"PreviousProgId";
+
+// Register and remove the BSA folder. `classes` is the registry path of the
+// classes root and `ext` the file extension, so a test can use neither the real
+// location nor the real extension.
+bool InstallBsaBrowser(HKEY root, const std::wstring& classes, const std::wstring& ext, const std::wstring& dllPath);
+void RemoveBsaBrowser(HKEY root, const std::wstring& classes, const std::wstring& ext);
+
 // Take over .dds, recording the current handler, and hand it back. `classes` and
 // `handlers` are the registry paths, so a test can use a throwaway location.
 bool InstallDdsHandler(HKEY root, const std::wstring& classes, const std::wstring& handlers, const std::wstring& dllPath);

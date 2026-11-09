@@ -48,6 +48,7 @@ add_library(PluginShellExtension SHARED
     src/property_window.cpp
     src/property_handler.cpp
     src/asset_property_handler.cpp
+    src/bsa_folder.cpp
     src/embedded_patterns.cpp
     src/disk_cache.cpp
     src/PluginShellExtension.def
@@ -56,7 +57,7 @@ add_library(PluginShellExtension SHARED
 # The ITM pattern catalog is compiled into the DLL as a resource.
 set_source_files_properties(src/PluginShellExtension.rc PROPERTIES
     OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/data/itm_patterns.json)
-target_link_libraries(PluginShellExtension PRIVATE psecore psepattern asset::metadata comctl32 uxtheme shell32 ole32 oleaut32 propsys
+target_link_libraries(PluginShellExtension PRIVATE psecore psepattern asset::metadata bsa::reader comctl32 uxtheme shell32 ole32 oleaut32 propsys
     windowscodecs shlwapi dwmapi)
 
 # Subrecord pattern engine and the ITM check.
@@ -82,6 +83,9 @@ target_link_libraries(proptest PRIVATE psecore shell32 ole32 shlwapi)
 
 add_executable(assetproptest tools/assetproptest.cpp)
 target_link_libraries(assetproptest PRIVATE psecore shell32 ole32 shlwapi propsys)
+
+add_executable(bsabrowsetest tools/bsabrowsetest.cpp)
+target_link_libraries(bsabrowsetest PRIVATE psecore shell32 ole32 shlwapi)
 
 add_executable(menutest tools/menutest.cpp)
 target_link_libraries(menutest PRIVATE psecore shell32 ole32)

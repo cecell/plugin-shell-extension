@@ -73,6 +73,7 @@ FinishedLabelNoIcons=Setup has finished installing [name] on your computer.%n%nR
 
 [Tasks]
 Name: "columns"; Description: "  Add columns to Explorer, the details pane and files tooltip (requires admin rights)"
+Name: "bsa"; Description: "  Browse .bsa archives in Explorer, like zip files (read-only)"
 Name: "hardlink"; Description: "  Add ""Hardlink"" to the right-click menu of every file (copy or open the path of its other link)"
 
 [Files]
@@ -264,6 +265,24 @@ begin
   Log(Format('regsvr32 %s -> ok=%d code=%d', [Params, Ord(Result), Code]));
 end;
 
+function BsaBrowseRegistered: Boolean;
+begin
+  Result := RegKeyExists(HKCU, 'Software\Classes\PluginShellExtension.BSA');
+end;
+
+// Runs regsvr32 /n /i:bsa (or /u ...) on the installed DLL, for this user.
+procedure RunBsaRegistration(Install: Boolean);
+var
+  Params: String;
+  Code: Integer;
+begin
+  Params := '/s /n /i:bsa "' + ExpandConstant('{app}\PluginShellExtension.dll') + '"';
+  if not Install then
+    Params := '/u ' + Params;
+  Exec(ExpandConstant('{sys}\regsvr32.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Log(Format('regsvr32 %s -> code=%d', [Params, Code]));
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then
@@ -276,6 +295,10 @@ begin
           mbInformation, MB_OK, IDOK);
     end else if ColumnsRegistered then
       RunColumnsRegistration(False);  // the task was unticked on an update
+    if WizardIsTaskSelected('bsa') then
+      RunBsaRegistration(True)
+    else if BsaBrowseRegistered then
+      RunBsaRegistration(False);
     if not WizardIsTaskSelected('hardlink') then begin  // unticked on an update: remove it
       RegDeleteKeyIncludingSubkeys(HKA, '{#HardlinkMenuKey}');
       RegDeleteKeyIncludingSubkeys(HKA, '{#HardlinkClsidKey}');
@@ -287,6 +310,8 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usUninstall then begin
     // Unregister while the DLL and schema are still in place.
+    if BsaBrowseRegistered then
+      RunBsaRegistration(False);
     if ColumnsRegistered then
       RunColumnsRegistration(False);
     // Moved to %TEMP% (same volume in the usual case) so the program folder
