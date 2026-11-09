@@ -178,6 +178,24 @@ def main() -> int:
         return 0
 
     report("## Nexus Mods")
+    # The site doesn't show entries added after a version's last page change until the
+    # page next changes, so they go in first and the upload that follows is that change.
+    # Each is added once: entries can't be replaced, only appended.
+    added = len(changelog) if has_log else 0
+
+    def add_changelog() -> str:
+        nonlocal added
+        try:
+            while added < len(changelog):
+                call("POST", f"{V3}/mods/{mod_id}/changelogs", {"version": version, "changelog": changelog[added]})
+                added += 1
+        except SystemExit as e:
+            return str(e)
+        return ""
+
+    early_error = add_changelog()
+    if early_error:
+        print(f"The changelog wasn't accepted before the upload; trying again after it: {early_error}")
     if on_nexus:
         report(f"- {version} is already on Nexus; not uploaded again.")
     else:
@@ -198,11 +216,12 @@ def main() -> int:
             "allow_mod_manager_download": True, "archive_existing_file": True, "update_mod_version": True})
         report(f"- Uploaded {archive.name} as version {version}; the previous version moved to Old files; "
                "the page's version follows it.")
+    late_error = add_changelog()
+    if late_error:
+        raise SystemExit(late_error)
     if has_log:
         report(f"- The changelog already has {version}; nothing added.")
     else:
-        for ln in changelog:
-            call("POST", f"{V3}/mods/{mod_id}/changelogs", {"version": version, "changelog": ln})
         report(f"- Changelog: {len(changelog)} lines added for {version}.")
     report(f"- Page: https://www.nexusmods.com/{GAME}/mods/{MOD}?tab=files")
     return 0
