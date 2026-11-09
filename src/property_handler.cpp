@@ -18,6 +18,7 @@
 #include "context_menu.h"
 #include "debug_log.h"
 #include "disk_cache.h"
+#include "work_budget.h"
 #include "embedded_patterns.h"
 #include "itm.h"
 #include "plugin_parser.h"
@@ -47,7 +48,7 @@ std::map<ScanKey, ScanSummary> g_cache;
 constexpr size_t kCacheLimit = 50000;
 
 // The ITM check is slower still (it reads the masters). In Explorer it runs
-// on a few background workers (ItmThreadCount, from settings.json), smallest
+// on a few background workers (WorkerThreadCount, from settings.json), smallest
 // plugin first so most values appear quickly: the column says "Working" until
 // the result is cached, then Explorer is told the file changed and asks
 // again. Results are keyed by the plugin's and every master's size and write
@@ -145,7 +146,11 @@ DWORD WINAPI ItmWorker(void* module) {
             job = std::move(g_itmQueue.begin()->second);  // the smallest plugin
             g_itmQueue.erase(g_itmQueue.begin());
         }
-        StoreItm(job.second, ComputeItm(job.first));
+        {
+            WorkSlot slot(WorkKind::Background);  // shared with every other job in every process
+            StoreItm(job.second, ComputeItm(job.first));
+            slot.Pace();
+        }
         {
             std::lock_guard<std::mutex> c(g_cacheLock);
             g_itmPending.erase(job.second);
@@ -159,7 +164,7 @@ DWORD WINAPI ItmWorker(void* module) {
 // Queues the check and starts workers up to the setting; returns false if no
 // worker is running and none could be started.
 bool QueueItm(const std::wstring& path, const std::wstring& key, uint64_t size) {
-    int wanted = ItmThreadCount();  // reads settings.json when it changed
+    int wanted = WorkerThreadCount();  // reads settings.json when it changed
     std::lock_guard<std::mutex> c(g_cacheLock);
     g_itmWorkersWanted = wanted;
     if (g_itmPending.insert(key).second) g_itmQueue.emplace(size, std::make_pair(path, key));

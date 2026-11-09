@@ -11,6 +11,8 @@
 #include "hardlink_menu.h"
 #include "asset_property_handler.h"
 #include "bsa_folder.h"
+#include "tool_menus.h"
+#include "tool_windows.h"
 #include "property_handler.h"
 #include "property_window.h"
 #include "registration.h"
@@ -75,6 +77,8 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
                  clsid == pse::kClsidPropertyHandler || clsid == pse::kClsidAssetPropertyHandler ||
                  clsid == pse::kClsidDdsPropertyHandler);
     if (clsid == pse::kClsidBsaFolder) return pse::CreateBsaFolderFactory(riid, ppv);
+    if (clsid == pse::kClsidBsaManager) return pse::CreateBsaManagerFactory(riid, ppv);
+    if (clsid == pse::kClsidHashMenu) return pse::CreateHashMenuFactory(riid, ppv);
     if (clsid == pse::kClsidContextMenu) return pse::CreateClassFactory(riid, ppv);
     if (clsid == pse::kClsidPropertyHandler) return pse::CreatePropertyHandlerFactory(riid, ppv);
     if (clsid == pse::kClsidAssetPropertyHandler) return pse::CreateAssetPropertyHandlerFactory(riid, ppv);
@@ -98,6 +102,16 @@ STDAPI DllInstall(BOOL install, PCWSTR cmdLine) {
         std::wstring dll = ModulePath();
         std::wstring schema = dll.substr(0, dll.find_last_of(L'\\') + 1) + pse::kSchemaFileName;
         return install ? pse::RegisterPropertyHandler(dll, schema) : pse::UnregisterPropertyHandler(schema);
+    }
+    // regsvr32 /n /i:hash PluginShellExtension.dll adds Hashes to every file, for
+    // this user; add /u to remove it.
+    if (cmdLine && _wcsicmp(cmdLine, L"hash") == 0) {
+        if (install) {
+            if (!pse::InstallHashMenu(HKEY_CURRENT_USER, L"Software\\Classes\\", ModulePath())) return E_FAIL;
+        } else {
+            pse::RemoveHashMenu(HKEY_CURRENT_USER, L"Software\\Classes\\");
+        }
+        return S_OK;
     }
     // regsvr32 /n /i:bsa PluginShellExtension.dll browses .bsa files as folders,
     // for this user; add /u to remove it.
@@ -127,3 +141,7 @@ extern "C" void CALLBACK SnapshotW(HWND, HINSTANCE, LPWSTR cmdLine, int) {
     if (argv && argc >= 2) pse::RunPropertyWindow(argv[0], argv[1], 0);
     if (argv) LocalFree(argv);
 }
+
+// For tests: runs a window, saves a picture of it, and closes it.
+extern "C" int __stdcall PseHashSnapshot(const wchar_t* path, const wchar_t* png, const wchar_t* script) { return pse::RunHashWindow(path, png, script); }
+extern "C" int __stdcall PseReportSnapshot(const wchar_t* title, int status, const wchar_t* text, const wchar_t* png) { return pse::RunReportWindow(title, status, text, png); }

@@ -17,4 +17,7 @@ void ShowPropertyWindowsAsync(const std::vector<std::wstring>& paths);
 // finishes and then closed (used for testing). Returns 0 on success.
 int RunPropertyWindow(const std::wstring& path, const std::wstring& snapshotPng, int cascadeIndex);
 
+// Saves a picture of a window as a PNG, without its invisible resize borders.
+bool SaveWindowPng(HWND hwnd, const std::wstring& png, int* width, int* height);
+
 }  // namespace pse

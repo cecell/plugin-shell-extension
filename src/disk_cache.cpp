@@ -144,14 +144,14 @@ int PhysicalCores() {
 
 const char kDefaultSettings[] =
     "{\n"
-    "  \"itmThreads\": 0,\n"
-    "  \"_itmThreads\": \"How many plugins the #ITM column checks at once. 0 = automatic: half the CPU cores, "
-    "from 1 to 6. Press F5 in Explorer after changing it.\"\n"
+    "  \"workerThreads\": 0,\n"
+    "  \"_workerThreads\": \"How many background jobs the whole extension runs at once: #ITM checks, extracting, testing and "
+    "hashing. 0 = automatic: half the CPU cores, from 1 to 6. Press F5 in Explorer after changing it.\"\n"
     "}\n";
 
 }  // namespace
 
-int ItmThreadCount() {
+int WorkerThreadCount() {
     static std::mutex lock;
     static uint64_t seenStamp = ~0ull;
     static int setting = 0;
@@ -184,7 +184,9 @@ int ItmThreadCount() {
                     Value root;
                     int64_t n = 0;
                     if (ParseJson(std::string_view(text, got), &root, nullptr) && root.kind() == Value::Kind::Map) {
-                        if (const Value* v = root.Find("itmThreads"); v && v->ToInt(&n)) setting = static_cast<int>(n);
+                        const Value* v = root.Find("workerThreads");
+                        if (!v) v = root.Find("itmThreads");
+                        if (v && v->ToInt(&n)) setting = static_cast<int>(n);
                     }
                 }
             }

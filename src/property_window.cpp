@@ -16,6 +16,7 @@
 #include <memory>
 #include <mutex>
 
+#include "bsa_tools.h"
 #include "debug_log.h"
 #include "embedded_patterns.h"
 #include "itm.h"
@@ -777,6 +778,7 @@ struct ScanSlot {
     GroupScan result;
     bool itmDone = false;  // the ITM check runs after the scan, on the same thread
     ItmResult itm;
+    BsaFacts bsa;
 };
 
 struct ScanJob {
@@ -810,6 +812,28 @@ DWORD WINAPI ScanThread(void* param) {
     FreeLibraryAndExitThread(module, 0);
 }
 
+struct BsaScanJob {
+    HWND hwnd;
+    std::wstring path;
+    std::shared_ptr<ScanSlot> slot;
+    HMODULE module;
+};
+
+DWORD WINAPI BsaScanThread(void* param) {
+    std::unique_ptr<BsaScanJob> job(static_cast<BsaScanJob*>(param));
+    BsaFacts facts = ReadBsaFacts(job->path);
+    {
+        std::lock_guard<std::mutex> g(job->slot->lock);
+        job->slot->bsa = std::move(facts);
+        job->slot->done = true;
+        job->slot->itmDone = true;
+    }
+    PostMessageW(job->hwnd, WM_APP_SCANDONE, 0, 0);
+    HMODULE module = job->module;
+    job.reset();
+    FreeLibraryAndExitThread(module, 0);
+}
+
 HMODULE AddModuleRef() {
     HMODULE module = nullptr;
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&AddModuleRef), &module);
@@ -831,7 +855,9 @@ public:
         RegisterClassExW(&wc);
     }
 
-    PropertyDialog(std::wstring path, std::wstring snapshot) : path_(std::move(path)), snapshot_(std::move(snapshot)) {}
+    PropertyDialog(std::wstring path, std::wstring snapshot) : path_(std::move(path)), snapshot_(std::move(snapshot)) {
+        isBsa_ = _wcsicmp(PathFindExtensionW(path_.c_str()), L".bsa") == 0;
+    }
 
     HWND Create(int cascadeIndex) {
         cascade_ = cascadeIndex;
@@ -850,6 +876,8 @@ public:
 private:
     std::wstring path_;
     std::wstring snapshot_;
+    bool isBsa_ = false;
+    BsaFacts bsa_;
     int cascade_ = 0;
     HWND hwnd_ = nullptr;
     HWND tab_ = nullptr, list_ = nullptr, ok_ = nullptr, cancel_ = nullptr;
@@ -983,7 +1011,49 @@ private:
         EndDeferWindowPos(dwp);
     }
 
+    std::vector<Row> BuildBsaRows() const {
+        std::vector<Row> rows;
+        auto group = [&rows](const wchar_t* name) { rows.push_back({true, name, L""}); };
+        auto row = [&rows](const std::wstring& name, std::wstring value) { rows.push_back({false, name, std::move(value)}); };
+        auto bytes = [](uint64_t n) {
+            wchar_t buf[64] = {};
+            StrFormatByteSizeEx(n, SFBS_FLAGS_TRUNCATE_UNDISPLAYED_DECIMAL_DIGITS, buf, ARRAYSIZE(buf));
+            return std::wstring(buf);
+        };
+        group(L"BSA");
+        if (!scanDone_) {
+            row(L"Number of files", L"Counting…");
+        } else if (!bsa_.ok) {
+            row(L"Error", bsa_.error);
+        } else {
+            row(L"Number of files", GroupDigits(bsa_.files));
+            row(L"Number of folders", GroupDigits(bsa_.folders));
+            row(L"Compressed", bsa_.compressedFiles ? L"True" : L"False");
+            row(L"Compression type", BsaCompressionName(bsa_));
+            row(L"Compressed files", GroupDigits(bsa_.compressedFiles));
+            row(L"Unpacked size", bytes(bsa_.unpackedBytes));
+            row(L"BSA version", std::to_wstring(bsa_.version));
+            row(L"Game", BsaGameName(bsa_.version));
+            row(L"Archive flags", BsaFlagsText(bsa_.archiveFlags));
+            row(L"Content flags", BsaContentText(bsa_.fileFlags));
+            row(L"Largest file", bsa_.largestName.empty() ? L"" : bsa_.largestName + L" (" + bytes(bsa_.largestBytes) + L")");
+            if (bsa_.skippedNames) {
+                row(L"Unsafe names", GroupDigits(bsa_.skippedNames));
+                rows.back().tip = L"Entries whose names could write outside the destination. They're hidden and never extracted.";
+            }
+            group(L"Contents");
+            for (const auto& k : bsa_.kinds) row(k.label, GroupDigits(k.count));
+        }
+        group(L"File");
+        row(L"Size", fileProps_.size);
+        row(L"Created", fileProps_.created);
+        row(L"Modified", fileProps_.modified);
+        row(L"Attributes", fileProps_.attributes);
+        return rows;
+    }
+
     std::vector<Row> BuildRows() const {
+        if (isBsa_) return BuildBsaRows();
         std::vector<Row> rows;
         auto group = [&rows](const wchar_t* name) { rows.push_back({true, name, L""}); };
         auto row = [&rows](const wchar_t* name, std::wstring value) { rows.push_back({false, name, std::move(value)}); };
@@ -1070,6 +1140,15 @@ private:
     // Completes through WM_APP_SCANDONE in every case, so snapshot mode always
     // finishes.
     void StartScan() {
+        if (isBsa_) {
+            auto* job = new BsaScanJob{hwnd_, path_, slot_, AddModuleRef()};
+            if (HANDLE t = CreateThread(nullptr, 0, &BsaScanThread, job, 0, nullptr)) {
+                CloseHandle(t);
+                return;
+            }
+            if (job->module) FreeLibrary(job->module);
+            delete job;
+        }
         if (header_.ok) {
             auto* job = new ScanJob{hwnd_, path_, header_, slot_, AddModuleRef()};
             if (HANDLE t = CreateThread(nullptr, 0, &ScanThread, job, 0, nullptr)) {
@@ -1089,56 +1168,8 @@ private:
     }
 
     void Snapshot() {
-        RedrawWindow(hwnd_, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_FRAME);
-        RECT wr, visible;
-        GetWindowRect(hwnd_, &wr);
-        // Crop the invisible resize borders, as a screenshot of the window would.
-        if (FAILED(DwmGetWindowAttribute(hwnd_, DWMWA_EXTENDED_FRAME_BOUNDS, &visible, sizeof(visible))))
-            visible = wr;
-        int fullW = wr.right - wr.left, fullH = wr.bottom - wr.top;
-        int w = visible.right - visible.left, h = visible.bottom - visible.top;
-        int cropX = visible.left - wr.left, cropY = visible.top - wr.top;
-        // The frame bounds are always physical pixels; a DPI-unaware window's
-        // rect is not, so fall back to the whole window when they disagree.
-        if (cropX < 0 || cropY < 0 || cropX + w > fullW || cropY + h > fullH) {
-            cropX = cropY = 0;
-            w = fullW;
-            h = fullH;
-        }
-        BITMAPINFO bi{};
-        bi.bmiHeader = {sizeof(BITMAPINFOHEADER), fullW, -fullH, 1, 32, BI_RGB};
-        void* bits = nullptr;
-        HDC screen = GetDC(nullptr);
-        HBITMAP dib = CreateDIBSection(screen, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
-        HDC dc = CreateCompatibleDC(screen);
-        ReleaseDC(nullptr, screen);
-        HGDIOBJ old = SelectObject(dc, dib);
-        PrintWindow(hwnd_, dc, PW_RENDERFULLCONTENT);
-        SelectObject(dc, old);
-        DeleteDC(dc);
-
-        IWICImagingFactory* factory = nullptr;
-        IWICBitmapEncoder* encoder = nullptr;
-        IWICStream* stream = nullptr;
-        IWICBitmapFrameEncode* frame = nullptr;
-        if (SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory))) &&
-            SUCCEEDED(factory->CreateStream(&stream)) &&
-            SUCCEEDED(stream->InitializeFromFilename(snapshot_.c_str(), GENERIC_WRITE)) &&
-            SUCCEEDED(factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder)) &&
-            SUCCEEDED(encoder->Initialize(stream, WICBitmapEncoderNoCache)) &&
-            SUCCEEDED(encoder->CreateNewFrame(&frame, nullptr)) && SUCCEEDED(frame->Initialize(nullptr)) &&
-            SUCCEEDED(frame->SetSize(static_cast<UINT>(w), static_cast<UINT>(h)))) {
-            // WriteSource converts to whatever pixel format the PNG encoder picked.
-            IWICBitmap* bitmap = nullptr;
-            if (SUCCEEDED(factory->CreateBitmapFromMemory(static_cast<UINT>(fullW), static_cast<UINT>(fullH),
-                                                          GUID_WICPixelFormat32bppBGR, static_cast<UINT>(fullW) * 4,
-                                                          static_cast<UINT>(fullW * fullH * 4),
-                                                          static_cast<BYTE*>(bits), &bitmap))) {
-                WICRect crop{cropX, cropY, w, h};
-                if (SUCCEEDED(frame->WriteSource(bitmap, &crop)) && SUCCEEDED(frame->Commit())) encoder->Commit();
-                bitmap->Release();
-            }
-        }
+        int w = 0, h = 0;
+        SaveWindowPng(hwnd_, snapshot_, &w, &h);
         // Metrics next to the PNG, for checking the layout.
         RECT cr;
         GetClientRect(hwnd_, &cr);
@@ -1158,11 +1189,6 @@ private:
             WriteFile(f, text.data(), static_cast<DWORD>(text.size() * sizeof(wchar_t)), &written, nullptr);
             CloseHandle(f);
         }
-        if (frame) frame->Release();
-        if (encoder) encoder->Release();
-        if (stream) stream->Release();
-        if (factory) factory->Release();
-        DeleteObject(dib);
     }
 
     // Called twice: once the record scan is done, and again after the ITM check.
@@ -1170,7 +1196,10 @@ private:
         {
             std::lock_guard<std::mutex> g(slot_->lock);
             if (!slot_->done) return;
-            if (!scanDone_) scan_ = std::move(slot_->result);
+            if (!scanDone_) {
+                scan_ = std::move(slot_->result);
+                bsa_ = std::move(slot_->bsa);
+            }
             if (slot_->itmDone && !itmDone_) {
                 itm_ = std::move(slot_->itm);
                 itmDone_ = true;
@@ -1235,7 +1264,7 @@ private:
                 PlaceWindow();
                 LayoutChildren();
 
-                header_ = ReadPluginHeader(path_);
+                if (!isBsa_) header_ = ReadPluginHeader(path_);
                 fileProps_ = ReadFileProps(path_);
                 StartScan();
                 PropertyList::From(list_)->SetRows(BuildRows());
@@ -1345,6 +1374,67 @@ private:
 };
 
 }  // namespace
+
+bool SaveWindowPng(HWND hwnd, const std::wstring& png, int* outWidth, int* outHeight) {
+    RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_FRAME);
+    RECT wr, visible;
+    GetWindowRect(hwnd, &wr);
+    // Crop the invisible resize borders, as a screenshot of the window would.
+    if (FAILED(DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, &visible, sizeof(visible))))
+        visible = wr;
+    int fullW = wr.right - wr.left, fullH = wr.bottom - wr.top;
+    int w = visible.right - visible.left, h = visible.bottom - visible.top;
+    int cropX = visible.left - wr.left, cropY = visible.top - wr.top;
+    // The frame bounds are always physical pixels; a DPI-unaware window's
+    // rect is not, so fall back to the whole window when they disagree.
+    if (cropX < 0 || cropY < 0 || cropX + w > fullW || cropY + h > fullH) {
+        cropX = cropY = 0;
+        w = fullW;
+        h = fullH;
+    }
+    BITMAPINFO bi{};
+    bi.bmiHeader = {sizeof(BITMAPINFOHEADER), fullW, -fullH, 1, 32, BI_RGB};
+    void* bits = nullptr;
+    HDC screen = GetDC(nullptr);
+    HBITMAP dib = CreateDIBSection(screen, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
+    HDC dc = CreateCompatibleDC(screen);
+    ReleaseDC(nullptr, screen);
+    HGDIOBJ old = SelectObject(dc, dib);
+    PrintWindow(hwnd, dc, PW_RENDERFULLCONTENT);
+    SelectObject(dc, old);
+    DeleteDC(dc);
+
+    IWICImagingFactory* factory = nullptr;
+    IWICBitmapEncoder* encoder = nullptr;
+    IWICStream* stream = nullptr;
+    IWICBitmapFrameEncode* frame = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory))) &&
+        SUCCEEDED(factory->CreateStream(&stream)) &&
+        SUCCEEDED(stream->InitializeFromFilename(png.c_str(), GENERIC_WRITE)) &&
+        SUCCEEDED(factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder)) &&
+        SUCCEEDED(encoder->Initialize(stream, WICBitmapEncoderNoCache)) &&
+        SUCCEEDED(encoder->CreateNewFrame(&frame, nullptr)) && SUCCEEDED(frame->Initialize(nullptr)) &&
+        SUCCEEDED(frame->SetSize(static_cast<UINT>(w), static_cast<UINT>(h)))) {
+        // WriteSource converts to whatever pixel format the PNG encoder picked.
+        IWICBitmap* bitmap = nullptr;
+        if (SUCCEEDED(factory->CreateBitmapFromMemory(static_cast<UINT>(fullW), static_cast<UINT>(fullH),
+                                                      GUID_WICPixelFormat32bppBGR, static_cast<UINT>(fullW) * 4,
+                                                      static_cast<UINT>(fullW * fullH * 4),
+                                                      static_cast<BYTE*>(bits), &bitmap))) {
+            WICRect crop{cropX, cropY, w, h};
+            if (SUCCEEDED(frame->WriteSource(bitmap, &crop)) && SUCCEEDED(frame->Commit())) encoder->Commit();
+            bitmap->Release();
+        }
+    }
+    if (outWidth) *outWidth = w;
+    if (outHeight) *outHeight = h;
+    if (frame) frame->Release();
+    if (encoder) encoder->Release();
+    if (stream) stream->Release();
+    if (factory) factory->Release();
+    DeleteObject(dib);
+    return true;
+}
 
 int RunPropertyWindow(const std::wstring& path, const std::wstring& snapshotPng, int cascadeIndex) {
     HRESULT hrCo = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);

@@ -18,10 +18,16 @@
 #include <shobjidl.h>
 
 #include <cstdio>
+#include <memory>
 #include <string>
 #include <vector>
 
+#include <atomic>
+#include <thread>
+
+#include "bsa_tools.h"
 #include "registration.h"
+#include "work_budget.h"
 
 namespace {
 
@@ -107,6 +113,103 @@ int Direct(int argc, wchar_t** argv) {
     return 0;
 }
 
+int Budget() {
+    using namespace pse;
+    Check(PaceDelayMs(10, 1, 4) == 0, L"an idle machine isn't slowed");
+    unsigned last = 0;
+    bool rises = true;
+    for (int cpu = 50; cpu <= 100; cpu += 5) {
+        const unsigned d = PaceDelayMs(cpu, 1, 4);
+        rises = rises && d >= last;
+        last = d;
+    }
+    Check(rises && last >= 150, L"it slows more as the CPU gets busier");
+    Check(PaceDelayMs(30, 4, 4) > PaceDelayMs(30, 1, 4), L"it slows more with more workers");
+    Check(PaceDelayMs(100, 64, 1) <= 400, L"a rest is never longer than the cap");
+    const int limit = WorkerLimit();
+    wprintf(L"     limit %d, active now %d\n", limit, ActiveWorkers());
+    Check(limit >= 1 && limit <= 64, L"the limit is sensible");
+    const int before = ActiveWorkers();
+    std::atomic<int> running{0}, peak{0};
+    std::vector<std::thread> threads;
+    for (int i = 0; i < limit + 6; ++i)
+        threads.emplace_back([&] {
+            WorkSlot slot(WorkKind::Interactive);
+            const int now = ++running;
+            int seen = peak.load();
+            while (now > seen && !peak.compare_exchange_weak(seen, now)) {
+            }
+            Sleep(120);
+            --running;
+        });
+    for (auto& t : threads) t.join();
+    wprintf(L"     peak running %d of limit %d\n", peak.load(), limit);
+    Check(peak.load() <= limit, L"never more workers than the limit");
+    Check(peak.load() >= 1, L"work did run");
+    Check(ActiveWorkers() == before, L"every slot was given back");
+    {
+        std::atomic<bool> cancel{true};
+        std::vector<std::unique_ptr<WorkSlot>> full;
+        while (static_cast<int>(full.size()) < limit - before) full.push_back(std::make_unique<WorkSlot>(WorkKind::Interactive));
+        WorkSlot blocked(WorkKind::Interactive, &cancel);
+        Check(!blocked.Held(), L"a full budget can be waited on and cancelled");
+    }
+    Check(ActiveWorkers() == before, L"cancelling leaves nothing held");
+    return g_failures ? 1 : 0;
+}
+
+int Facts(const wchar_t* archive) {
+    pse::BsaFacts f = pse::ReadBsaFacts(archive);
+    wprintf(L"ok=%d version=%u files=%u folders=%u compressed=%llu unpacked=%llu archive=%llu skipped=%llu largest=%s game=%s type=%s\n", f.ok, f.version, f.files, f.folders, f.compressedFiles, f.unpackedBytes, f.archiveBytes,
+            f.skippedNames, f.largestName.c_str(), pse::BsaGameName(f.version), pse::BsaCompressionName(f));
+    for (const auto& k : f.kinds) wprintf(L"%s\t%llu\n", k.label.c_str(), k.count);
+    return f.ok ? 0 : 1;
+}
+
+int Extract(const wchar_t* archive, const wchar_t* dest, const wchar_t* mode) {
+    const uint64_t existing = pse::CountExisting(archive, dest);
+    const ULONGLONG start = GetTickCount64();
+    pse::ExtractResult r = pse::ExtractBsa(archive, dest, !wcscmp(mode, L"skip") ? pse::ExistingFiles::Skip : pse::ExistingFiles::Replace, {});
+    wprintf(L"existing=%llu opened=%d written=%llu skippedExisting=%llu skippedNames=%llu failed=%llu ms=%llu error=%s\n", existing, r.opened, r.written, r.skippedExisting, r.skippedNames, r.failed, GetTickCount64() - start, r.firstError.c_str());
+    return r.opened && !r.failed ? 0 : 1;
+}
+
+int TestArchive(const wchar_t* archive) {
+    const ULONGLONG start = GetTickCount64();
+    pse::BsaTestReport r = pse::TestBsa(archive, {});
+    wprintf(L"status=%d ms=%llu\n%s\n", r.status, GetTickCount64() - start, r.text.c_str());
+    return 0;
+}
+
+int Hash(const wchar_t* file) {
+    pse::FileHashes h = pse::ComputeHashes(file, nullptr, {});
+    wprintf(L"ok=%d sha256=%s crc32=%s md5=%s error=%s\n", h.ok, h.sha256.c_str(), h.crc32.c_str(), h.md5.c_str(), h.error.c_str());
+    return h.ok ? 0 : 1;
+}
+
+int HashWindow(const wchar_t* dllPath, const wchar_t* file, const wchar_t* png, const wchar_t* script) {
+    HMODULE dll = LoadLibraryW(dllPath);
+    auto run = dll ? reinterpret_cast<int(__stdcall*)(const wchar_t*, const wchar_t*, const wchar_t*)>(GetProcAddress(dll, "PseHashSnapshot")) : nullptr;
+    return run ? run(file, png, script) : 2;
+}
+
+int ReportWindow(const wchar_t* dllPath, const wchar_t* archive, const wchar_t* png) {
+    HMODULE dll = LoadLibraryW(dllPath);
+    auto run = dll ? reinterpret_cast<int(__stdcall*)(const wchar_t*, int, const wchar_t*, const wchar_t*)>(GetProcAddress(dll, "PseReportSnapshot")) : nullptr;
+    if (!run) return 2;
+    pse::BsaTestReport r = pse::TestBsa(archive, {});
+    return run(L"Test result", r.status, r.text.c_str(), png);
+}
+
+int PropsWindow(const wchar_t* dllPath, const wchar_t* archive, const wchar_t* png) {
+    HMODULE dll = LoadLibraryW(dllPath);
+    auto run = dll ? reinterpret_cast<void(CALLBACK*)(HWND, HINSTANCE, LPWSTR, int)>(GetProcAddress(dll, "SnapshotW")) : nullptr;
+    if (!run) return 2;
+    std::wstring line = L"\"" + std::wstring(archive) + L"\" \"" + png + L"\"";
+    run(nullptr, nullptr, line.data(), 0);
+    return 0;
+}
+
 int OpenInside(const wchar_t* dllPath, const wchar_t* archive, const wchar_t* folderName, const wchar_t* fileName) {
     HMODULE dll = LoadLibraryW(dllPath);
     auto getClassObject = dll ? reinterpret_cast<HRESULT(STDAPICALLTYPE*)(REFCLSID, REFIID, void**)>(GetProcAddress(dll, "DllGetClassObject")) : nullptr;
@@ -165,6 +268,8 @@ int Registration() {
     Check(Read(clsid + L"\\InprocServer32", nullptr) == L"C:\\x.dll", L"the DLL path is written");
     Check(Read(clsid + L"\\InprocServer32", L"ThreadingModel") == L"Apartment", L"Apartment threading");
     Check(Exists(classes + L"SystemFileAssociations\\.bsa\\shell\\BrowseContents\\command"), L"the Browse contents verb exists");
+    Check(Read(classes + L"SystemFileAssociations\\.bsa\\shellex\\ContextMenuHandlers\\PluginShellExtensionBsaManager", nullptr) == pse::kBsaManagerClsidString, L"the BSA manager menu is on .bsa");
+    Check(!Exists(classes + L"SystemFileAssociations\\.ba2"), L"nothing is registered for .ba2");
     Check(Exists(clsid + L"\\Implemented Categories\\{00021490-0000-0000-C000-000000000046}"), L"registered as a browsable folder");
     Check(pse::InstallBsaBrowser(HKEY_CURRENT_USER, classes, ext, L"C:\\y.dll"), L"reinstall succeeds");
     Check(Read(prog, pse::kPreviousProgIdValue) == old, L"a reinstall keeps the recorded type");
@@ -172,6 +277,13 @@ int Registration() {
     Check(Read(extKey, nullptr) == old, L"uninstall puts the previous type back");
     Check(!Exists(prog) && !Exists(clsid), L"uninstall removes our keys");
     Check(!Exists(classes + L"SystemFileAssociations\\.bsa\\shell\\BrowseContents"), L"uninstall removes the verb");
+    Check(!Exists(classes + L"SystemFileAssociations\\.bsa\\shellex\\ContextMenuHandlers\\PluginShellExtensionBsaManager"), L"uninstall removes the BSA manager menu");
+    Check(!Exists(classes + L"CLSID\\" + pse::kBsaManagerClsidString), L"uninstall removes the BSA manager class");
+
+    Check(pse::InstallHashMenu(HKEY_CURRENT_USER, classes, L"C:\\x.dll"), L"the hash menu installs");
+    Check(Read(classes + L"*\\shellex\\ContextMenuHandlers\\PluginShellExtensionHashes", nullptr) == pse::kHashMenuClsidString, L"the hash menu is on every file");
+    pse::RemoveHashMenu(HKEY_CURRENT_USER, classes);
+    Check(!Exists(classes + L"*\\shellex\\ContextMenuHandlers\\PluginShellExtensionHashes"), L"uninstall removes the hash menu");
 
     pse::InstallBsaBrowser(HKEY_CURRENT_USER, classes, ext, L"C:\\x.dll");
     const std::wstring later = L"SomeOtherTool.bsa";
@@ -445,6 +557,14 @@ int ExplorerTest(const wchar_t* dll, const wchar_t* archive, const wchar_t* dest
 int wmain(int argc, wchar_t** argv) {
     _setmode(_fileno(stdout), _O_U8TEXT);
     if (argc == 2 && !wcscmp(argv[1], L"--registration")) return Registration();
+    if (argc == 2 && !wcscmp(argv[1], L"--budget")) return Budget();
+    if (argc == 3 && !wcscmp(argv[1], L"--facts")) return Facts(argv[2]);
+    if (argc == 5 && !wcscmp(argv[1], L"--extract")) return Extract(argv[2], argv[3], argv[4]);
+    if (argc == 3 && !wcscmp(argv[1], L"--test")) return TestArchive(argv[2]);
+    if (argc == 3 && !wcscmp(argv[1], L"--hash")) return Hash(argv[2]);
+    if (argc == 6 && !wcscmp(argv[1], L"--hashwindow")) return HashWindow(argv[2], argv[3], argv[4], argv[5]);
+    if (argc == 5 && !wcscmp(argv[1], L"--propswindow")) return PropsWindow(argv[2], argv[3], argv[4]);
+    if (argc == 5 && !wcscmp(argv[1], L"--reportwindow")) return ReportWindow(argv[2], argv[3], argv[4]);
     OleInitialize(nullptr);
     int rc = 2;
     if (argc >= 4 && !wcscmp(argv[1], L"--direct")) rc = Direct(argc, argv);

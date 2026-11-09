@@ -19,7 +19,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 include(FetchContent)
 FetchContent_Declare(bsa_reader
     GIT_REPOSITORY https://github.com/cecell/bsa-reader.git
-    GIT_TAG bbff0cbc5cd04d39bb3b50c470c579669c027dbf)  # v0.1.1
+    GIT_TAG f2a8a197f67dad709803779046f85d8a33957873)  # after v0.1.1: the engine's hash corner cases
 FetchContent_MakeAvailable(bsa_reader)
 # beth-asset-metadata (GPL-3.0, github.com/cecell/beth-asset-metadata): header
 # facts for the .tga and .fuz property handler. Pinned to the commit of tag
@@ -49,15 +49,16 @@ add_library(PluginShellExtension SHARED
     src/property_handler.cpp
     src/asset_property_handler.cpp
     src/bsa_folder.cpp
+    src/tool_menus.cpp
+    src/tool_windows.cpp
     src/embedded_patterns.cpp
-    src/disk_cache.cpp
     src/PluginShellExtension.def
     src/PluginShellExtension.rc
     src/PluginShellExtension.manifest)
 # The ITM pattern catalog is compiled into the DLL as a resource.
 set_source_files_properties(src/PluginShellExtension.rc PROPERTIES
     OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/data/itm_patterns.json)
-target_link_libraries(PluginShellExtension PRIVATE psecore psepattern asset::metadata bsa::reader comctl32 uxtheme shell32 ole32 oleaut32 propsys
+target_link_libraries(PluginShellExtension PRIVATE psecore psepattern psetools asset::metadata bsa::reader comctl32 uxtheme shell32 ole32 oleaut32 propsys
     windowscodecs shlwapi dwmapi)
 
 # Subrecord pattern engine and the ITM check.
@@ -68,6 +69,14 @@ add_library(psepattern STATIC
     src/itm.cpp)
 target_include_directories(psepattern PUBLIC src)
 target_link_libraries(psepattern PRIVATE bsa::reader)
+
+# The work behind the BSA manager and hash dialog, and the shared worker budget.
+add_library(psetools STATIC
+    src/work_budget.cpp
+    src/bsa_tools.cpp
+    src/disk_cache.cpp)
+target_include_directories(psetools PUBLIC src)
+target_link_libraries(psetools PUBLIC psepattern bsa::reader bcrypt advapi32)
 
 add_executable(itmcheck tools/itmcheck.cpp)
 target_link_libraries(itmcheck PRIVATE psepattern)
@@ -85,7 +94,7 @@ add_executable(assetproptest tools/assetproptest.cpp)
 target_link_libraries(assetproptest PRIVATE psecore shell32 ole32 shlwapi propsys)
 
 add_executable(bsabrowsetest tools/bsabrowsetest.cpp)
-target_link_libraries(bsabrowsetest PRIVATE psecore shell32 ole32 shlwapi)
+target_link_libraries(bsabrowsetest PRIVATE psecore psetools shell32 ole32 shlwapi user32)
 
 add_executable(menutest tools/menutest.cpp)
 target_link_libraries(menutest PRIVATE psecore shell32 ole32)
