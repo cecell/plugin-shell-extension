@@ -1,4 +1,6 @@
 #include "tool_windows.h"
+#include "papyrus_tools.h"
+#include "work_budget.h"
 
 #include <commctrl.h>
 #include <dwmapi.h>
@@ -825,9 +827,68 @@ DWORD WINAPI TestThread(void* param) {
     FreeLibraryAndExitThread(module, 0);
 }
 
-void Start(LPTHREAD_START_ROUTINE routine, ActionArgs* args) {
+// Decompiling and compiling recurse with the depth of the script, and they
+// run inside Explorer, so they get far more stack than any real script needs.
+DWORD WINAPI PapyrusThread(void* param) {
+    std::unique_ptr<ActionArgs> a(static_cast<ActionArgs*>(param));
+    const bool compile = a->intoOwnFolder;
+    HRESULT co = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    {
+        ActivationContext act;
+        DpiScope dpi;
+        const wchar_t* const title = compile ? L"Compile" : L"Decompile";
+        std::vector<std::pair<std::wstring, std::wstring>> work;
+        size_t existing = 0;
+        for (const auto& path : a->paths) {
+            std::wstring target = compile ? CompiledScriptPath(path) : DecompiledScriptPath(path);
+            if (GetFileAttributesW(target.c_str()) != INVALID_FILE_ATTRIBUTES) ++existing;
+            work.emplace_back(path, std::move(target));
+        }
+        bool replace = true, go = true;
+        if (existing) {
+            std::wstring ask = existing == 1 && work.size() == 1 ? work[0].second + L" already exists. Replace it?"
+                                                                  : std::to_wstring(existing) + L" of the output files already exist. Replace them?\r\n\r\nNo keeps them and does the rest.";
+            const int choice = MessageBoxW(nullptr, ask.c_str(), title, (work.size() == 1 ? MB_YESNO : MB_YESNOCANCEL) | MB_ICONQUESTION | MB_SETFOREGROUND);
+            if (choice == IDCANCEL || (work.size() == 1 && choice == IDNO)) go = false;
+            if (choice == IDNO) replace = false;
+        }
+        if (go) {
+            int worst = 0;
+            bool show = compile;
+            std::wstring report;
+            {
+                PapyrusWorkspace workspace;
+                ProgressBox box(compile ? L"Compiling" : L"Decompiling");
+                for (size_t i = 0; i < work.size(); ++i) {
+                    const auto& [source, target] = work[i];
+                    if (!replace && GetFileAttributesW(target.c_str()) != INVALID_FILE_ATTRIBUTES) continue;
+                    box.Line(FileNameOf(source));
+                    if (!box.Update(i, work.size())) break;
+                    WorkSlot slot(WorkKind::Interactive);
+                    const PapyrusResult r = compile ? workspace.Compile(source, target) : workspace.Decompile(source, target);
+                    slot.Pace();
+                    worst = (std::max)(worst, r.status);
+                    report += r.text;
+                    if (r.status) show = true;
+                    const std::wstring folder = target.substr(0, target.find_last_of(L'\\'));
+                    SHChangeNotify(SHCNE_UPDATEDIR, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, folder.c_str(), nullptr);
+                }
+            }
+            if (show && !report.empty()) {
+                const std::wstring name = work.size() == 1 ? FileNameOf(work[0].first) + L" " : std::to_wstring(work.size()) + L" scripts ";
+                RunReportWindow(name + (compile ? L"compile" : L"decompile"), worst, report, L"");
+            }
+        }
+    }
+    if (SUCCEEDED(co)) CoUninitialize();
+    HMODULE module = a->module;
+    a.reset();
+    FreeLibraryAndExitThread(module, 0);
+}
+
+void Start(LPTHREAD_START_ROUTINE routine, ActionArgs* args, SIZE_T stack = 0) {
     args->module = AddModuleRef();
-    if (HANDLE t = CreateThread(nullptr, 0, routine, args, 0, nullptr)) {
+    if (HANDLE t = CreateThread(nullptr, stack, routine, args, stack ? STACK_SIZE_PARAM_IS_A_RESERVATION : 0, nullptr)) {
         CloseHandle(t);
         return;
     }
@@ -888,6 +949,10 @@ void ExtractBsasAsync(const std::vector<std::wstring>& paths, bool intoOwnFolder
 }
 
 void TestBsasAsync(const std::vector<std::wstring>& paths) { Start(&TestThread, new ActionArgs{paths, false}); }
+
+void PapyrusAsync(const std::vector<std::wstring>& paths, bool compile) {
+    Start(&PapyrusThread, new ActionArgs{paths, compile}, 64u * 1024 * 1024);
+}
 
 void ShowHashWindowAsync(const std::wstring& path) {
     auto* args = new HashWindowArgs{path, AddModuleRef()};

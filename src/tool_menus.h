@@ -7,5 +7,6 @@ namespace pse {
 
 HRESULT CreateBsaManagerFactory(REFIID riid, void** ppv);
 HRESULT CreateHashMenuFactory(REFIID riid, void** ppv);
+HRESULT CreatePapyrusMenuFactory(REFIID riid, void** ppv);
 
 }  // namespace pse

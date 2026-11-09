@@ -79,6 +79,7 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
     if (clsid == pse::kClsidBsaFolder) return pse::CreateBsaFolderFactory(riid, ppv);
     if (clsid == pse::kClsidBsaManager) return pse::CreateBsaManagerFactory(riid, ppv);
     if (clsid == pse::kClsidHashMenu) return pse::CreateHashMenuFactory(riid, ppv);
+    if (clsid == pse::kClsidPapyrusMenu) return pse::CreatePapyrusMenuFactory(riid, ppv);
     if (clsid == pse::kClsidContextMenu) return pse::CreateClassFactory(riid, ppv);
     if (clsid == pse::kClsidPropertyHandler) return pse::CreatePropertyHandlerFactory(riid, ppv);
     if (clsid == pse::kClsidAssetPropertyHandler) return pse::CreateAssetPropertyHandlerFactory(riid, ppv);
@@ -110,6 +111,16 @@ STDAPI DllInstall(BOOL install, PCWSTR cmdLine) {
             if (!pse::InstallHashMenu(HKEY_CURRENT_USER, L"Software\\Classes\\", ModulePath())) return E_FAIL;
         } else {
             pse::RemoveHashMenu(HKEY_CURRENT_USER, L"Software\\Classes\\");
+        }
+        return S_OK;
+    }
+    // regsvr32 /n /i:papyrus PluginShellExtension.dll adds Decompile to .pex and
+    // Compile to .psc, for this user; add /u to remove them.
+    if (cmdLine && _wcsicmp(cmdLine, L"papyrus") == 0) {
+        if (install) {
+            if (!pse::InstallPapyrusMenu(HKEY_CURRENT_USER, L"Software\\Classes\\", ModulePath())) return E_FAIL;
+        } else {
+            pse::RemovePapyrusMenu(HKEY_CURRENT_USER, L"Software\\Classes\\");
         }
         return S_OK;
     }

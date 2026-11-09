@@ -11,6 +11,7 @@ namespace pse {
 
 void ExtractBsasAsync(const std::vector<std::wstring>& paths, bool intoOwnFolder);
 void TestBsasAsync(const std::vector<std::wstring>& paths);
+void PapyrusAsync(const std::vector<std::wstring>& paths, bool compile);
 void ShowHashWindowAsync(const std::wstring& path);
 
 // Runs the hash dialog on this thread. With png set, it plays `script` (steps

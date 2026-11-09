@@ -26,6 +26,9 @@
 #include <thread>
 
 #include "bsa_tools.h"
+#include "papyrus_tools.h"
+#include <filesystem>
+#include <fstream>
 #include "registration.h"
 #include "work_budget.h"
 
@@ -201,6 +204,40 @@ int ReportWindow(const wchar_t* dllPath, const wchar_t* archive, const wchar_t* 
     return run(L"Test result", r.status, r.text.c_str(), png);
 }
 
+// Runs each line of a list file: "d|c<TAB>input<TAB>output". Prints one status line per script.
+int PapyrusListOnThisThread(const wchar_t* listPath, const wchar_t* data) {
+    std::wifstream list{std::filesystem::path(listPath)};
+    pse::PapyrusWorkspace workspace(data);
+    std::wstring line;
+    int problems = 0;
+    while (std::getline(list, line)) {
+        const size_t a = line.find(L'\t'), b = line.rfind(L'\t');
+        if (a == std::wstring::npos || a == b) continue;
+        const std::wstring in = line.substr(a + 1, b - a - 1), out = line.substr(b + 1);
+        const pse::PapyrusResult r = line[0] == L'c' ? workspace.Compile(in, out) : workspace.Decompile(in, out);
+        if (r.status) ++problems;
+        std::wstring text = r.text;
+        for (wchar_t& c : text) if (c == L'\r' || c == L'\n') c = L' ';
+        wprintf(L"%d %ls\n", r.status, text.c_str());
+    }
+    return problems ? 1 : 0;
+}
+
+// The same 64 MB of stack the menu command runs with.
+int PapyrusList(const wchar_t* listPath, const wchar_t* data) {
+    struct Args { const wchar_t* list; const wchar_t* data; } args{listPath, data};
+    HANDLE t = CreateThread(nullptr, 64u * 1024 * 1024, [](void* p) -> DWORD {
+        auto* a = static_cast<Args*>(p);
+        return static_cast<DWORD>(PapyrusListOnThisThread(a->list, a->data));
+    }, &args, STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
+    if (!t) return 2;
+    WaitForSingleObject(t, INFINITE);
+    DWORD code = 2;
+    GetExitCodeThread(t, &code);
+    CloseHandle(t);
+    return static_cast<int>(code);
+}
+
 int PropsWindow(const wchar_t* dllPath, const wchar_t* archive, const wchar_t* png) {
     HMODULE dll = LoadLibraryW(dllPath);
     auto run = dll ? reinterpret_cast<void(CALLBACK*)(HWND, HINSTANCE, LPWSTR, int)>(GetProcAddress(dll, "SnapshotW")) : nullptr;
@@ -285,6 +322,10 @@ int Registration() {
     Check(!Exists(classes + L"SystemFileAssociations\\.bsa\\shellex\\ContextMenuHandlers\\PluginShellExtensionBsaManager"), L"uninstall removes the BSA manager menu");
     Check(!Exists(classes + L"CLSID\\" + pse::kBsaManagerClsidString), L"uninstall removes the BSA manager class");
 
+    Check(pse::InstallPapyrusMenu(HKEY_CURRENT_USER, classes, L"C:\\x.dll"), L"the Papyrus menu installs");
+    for (const wchar_t* e : {L".pex", L".psc"}) Check(Read(classes + L"SystemFileAssociations\\" + e + L"\\shellex\\ContextMenuHandlers\\PluginShellExtensionPapyrus", nullptr) == pse::kPapyrusMenuClsidString, L"the Papyrus menu is on its extension");
+    pse::RemovePapyrusMenu(HKEY_CURRENT_USER, classes);
+    Check(!Exists(classes + L"SystemFileAssociations\\.pex\\shellex\\ContextMenuHandlers\\PluginShellExtensionPapyrus") && !Exists(classes + L"CLSID\\" + pse::kPapyrusMenuClsidString), L"uninstall removes the Papyrus menu");
     Check(pse::InstallHashMenu(HKEY_CURRENT_USER, classes, L"C:\\x.dll"), L"the hash menu installs");
     Check(Read(classes + L"*\\shellex\\ContextMenuHandlers\\PluginShellExtensionHashes", nullptr) == pse::kHashMenuClsidString, L"the hash menu is on every file");
     pse::RemoveHashMenu(HKEY_CURRENT_USER, classes);
@@ -568,6 +609,7 @@ int wmain(int argc, wchar_t** argv) {
     if (argc == 3 && !wcscmp(argv[1], L"--test")) return TestArchive(argv[2]);
     if (argc == 3 && !wcscmp(argv[1], L"--hash")) return Hash(argv[2]);
     if (argc == 6 && !wcscmp(argv[1], L"--hashwindow")) return HashWindow(argv[2], argv[3], argv[4], argv[5]);
+    if (argc == 4 && !wcscmp(argv[1], L"--papyrus")) return PapyrusList(argv[2], argv[3]);
     if (argc == 5 && !wcscmp(argv[1], L"--propswindow")) return PropsWindow(argv[2], argv[3], argv[4]);
     if (argc == 5 && !wcscmp(argv[1], L"--reportwindow")) return ReportWindow(argv[2], argv[3], argv[4]);
     OleInitialize(nullptr);

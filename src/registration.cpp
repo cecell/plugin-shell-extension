@@ -119,6 +119,27 @@ void RemoveHashMenu(HKEY root, const std::wstring& classes) {
     RegDeleteKeyW(root, clsid.c_str());
 }
 
+bool InstallPapyrusMenu(HKEY root, const std::wstring& classes, const std::wstring& dllPath) {
+    const std::wstring clsid = classes + L"CLSID\\" + kPapyrusMenuClsidString;
+    LSTATUS st = WriteHandler(root, clsid, L"Plugin Shell Extension Papyrus menu", dllPath);
+    for (const wchar_t* ext : {L".pex", L".psc"}) {
+        if (st == ERROR_SUCCESS) st = SetString(root, classes + L"SystemFileAssociations\\" + ext + L"\\shellex\\ContextMenuHandlers\\PluginShellExtensionPapyrus", nullptr, kPapyrusMenuClsidString);
+    }
+    if (st != ERROR_SUCCESS) RemovePapyrusMenu(root, classes);
+    return st == ERROR_SUCCESS;
+}
+
+void RemovePapyrusMenu(HKEY root, const std::wstring& classes) {
+    for (const wchar_t* ext : {L".pex", L".psc"}) {
+        const std::wstring key = classes + L"SystemFileAssociations\\" + ext + L"\\shellex\\ContextMenuHandlers\\PluginShellExtensionPapyrus";
+        RegDeleteTreeW(root, key.c_str());
+        RegDeleteKeyW(root, key.c_str());
+    }
+    const std::wstring clsid = classes + L"CLSID\\" + kPapyrusMenuClsidString;
+    RegDeleteTreeW(root, clsid.c_str());
+    RegDeleteKeyW(root, clsid.c_str());
+}
+
 bool InstallBsaBrowser(HKEY root, const std::wstring& classes, const std::wstring& ext, const std::wstring& dllPath) {
     const std::wstring clsid = classes + L"CLSID\\" + kBsaFolderClsidString;
     const std::wstring prog = classes + kBsaProgId;

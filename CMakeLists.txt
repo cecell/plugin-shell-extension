@@ -28,6 +28,12 @@ FetchContent_Declare(asset_metadata
     GIT_REPOSITORY https://github.com/cecell/beth-asset-metadata.git
     GIT_TAG 9d0c51a3cb43866d9e0e2118a6f73a2c83074057)  # v0.4.0
 FetchContent_MakeAvailable(asset_metadata)
+# skqe-papyrus-decompiler (GPL-3.0, github.com/cecell/skqe-papyrus-decompiler):
+# Decompile on .pex and Compile on .psc. Its pex program isn't built here.
+FetchContent_Declare(skqe_papyrus_lib
+    GIT_REPOSITORY https://github.com/cecell/skqe-papyrus-decompiler.git
+    GIT_TAG c3181306016544584cb4d3c5194a85f9bfaa067e)
+FetchContent_MakeAvailable(skqe_papyrus_lib)
 
 add_compile_definitions(UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00
     PSE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR} PSE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
@@ -74,9 +80,10 @@ target_link_libraries(psepattern PRIVATE bsa::reader)
 add_library(psetools STATIC
     src/work_budget.cpp
     src/bsa_tools.cpp
+    src/papyrus_tools.cpp
     src/disk_cache.cpp)
 target_include_directories(psetools PUBLIC src)
-target_link_libraries(psetools PUBLIC psepattern bsa::reader bcrypt advapi32)
+target_link_libraries(psetools PUBLIC psepattern bsa::reader skqe::papyrus bcrypt advapi32)
 
 add_executable(itmcheck tools/itmcheck.cpp)
 target_link_libraries(itmcheck PRIVATE psepattern)

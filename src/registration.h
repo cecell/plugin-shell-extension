@@ -57,9 +57,14 @@ inline constexpr wchar_t kBsaManagerClsidString[] = L"{C4A7B1D2-6E3F-4A58-B9D1-7
 // {5E8D2C17-A3B4-4C69-8F12-3B7A90D4E5C6}
 inline constexpr GUID kClsidHashMenu = {0x5e8d2c17, 0xa3b4, 0x4c69, {0x8f, 0x12, 0x3b, 0x7a, 0x90, 0xd4, 0xe5, 0xc6}};
 inline constexpr wchar_t kHashMenuClsidString[] = L"{5E8D2C17-A3B4-4C69-8F12-3B7A90D4E5C6}";
+inline constexpr GUID kClsidPapyrusMenu = {0x3a9e7c41, 0x5b2d, 0x4f86, {0xa1, 0xc3, 0x8e, 0x6d, 0x0f, 0x2b, 0x7a, 0x15}};
+inline constexpr wchar_t kPapyrusMenuClsidString[] = L"{3A9E7C41-5B2D-4F86-A1C3-8E6D0F2B7A15}";
 
 bool InstallHashMenu(HKEY root, const std::wstring& classes, const std::wstring& dllPath);
 void RemoveHashMenu(HKEY root, const std::wstring& classes);
+// Decompile on .pex and Compile on .psc.
+bool InstallPapyrusMenu(HKEY root, const std::wstring& classes, const std::wstring& dllPath);
+void RemovePapyrusMenu(HKEY root, const std::wstring& classes);
 
 // Register and remove the BSA folder. `classes` is the registry path of the
 // classes root and `ext` the file extension, so a test can use neither the real

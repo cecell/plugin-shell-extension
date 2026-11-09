@@ -16,11 +16,12 @@
 namespace pse {
 namespace {
 
-enum class MenuKind { Bsa, Hash };
+enum class MenuKind { Bsa, Hash, Papyrus };
 enum { kExtractHere, kExtractFolder, kTest, kProperties, kBsaCommands };
 enum { kHashes, kHashCommands };
 
 bool IsBsa(const std::wstring& path) { return _wcsicmp(PathFindExtensionW(path.c_str()), L".bsa") == 0; }
+bool HasExtension(const std::wstring& path, const wchar_t* ext) { return _wcsicmp(PathFindExtensionW(path.c_str()), ext) == 0; }
 
 std::wstring ExtractFolderLabel(const std::vector<std::wstring>& paths) {
     if (paths.size() != 1) return L"Extract to \"*\\\"";
@@ -76,7 +77,19 @@ public:
                     path.resize(len);
                     const DWORD attributes = GetFileAttributesW(path.c_str());
                     const bool isFile = attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY);
-                    if (isFile && (kind_ == MenuKind::Hash || IsBsa(path))) paths_.push_back(std::move(path));
+                    if (!isFile) continue;
+                    if (kind_ == MenuKind::Papyrus) {
+                        // One command at a time: whichever type comes first in the selection.
+                        if (paths_.empty()) {
+                            if (!HasExtension(path, L".pex") && !HasExtension(path, L".psc")) continue;
+                            compile_ = HasExtension(path, L".psc");
+                        } else if (!HasExtension(path, compile_ ? L".psc" : L".pex")) {
+                            continue;
+                        }
+                        paths_.push_back(std::move(path));
+                    } else if (kind_ == MenuKind::Hash || IsBsa(path)) {
+                        paths_.push_back(std::move(path));
+                    }
                 }
                 GlobalUnlock(stg.hGlobal);
             }
@@ -89,6 +102,11 @@ public:
 
     IFACEMETHODIMP QueryContextMenu(HMENU menu, UINT index, UINT first, UINT last, UINT flags) override {
         if (flags & CMF_DEFAULTONLY) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
+        if (kind_ == MenuKind::Papyrus) {
+            if (last < first) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
+            InsertMenuW(menu, index, MF_BYPOSITION | MF_STRING, first, compile_ ? L"Compile" : L"Decompile");
+            return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 1);
+        }
         if (kind_ == MenuKind::Hash) {
             if (paths_.size() != 1 || last < first) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
             InsertMenuW(menu, index, MF_BYPOSITION | MF_STRING, first + kHashes, L"Hashes");
@@ -116,6 +134,11 @@ public:
         if (HIWORD(info->lpVerb)) return E_INVALIDARG;
         const UINT command = LOWORD(info->lpVerb);
         try {
+            if (kind_ == MenuKind::Papyrus) {
+                if (command != 0 || paths_.empty()) return E_INVALIDARG;
+                PapyrusAsync(paths_, compile_);
+                return S_OK;
+            }
             if (kind_ == MenuKind::Hash) {
                 if (command != kHashes || paths_.empty()) return E_INVALIDARG;
                 ShowHashWindowAsync(paths_[0]);
@@ -139,6 +162,7 @@ private:
     ~ToolMenu() { InterlockedDecrement(&g_dllRefs); }
     long refs_ = 1;
     MenuKind kind_;
+    bool compile_ = false;
     std::vector<std::wstring> paths_;
 };
 
@@ -195,5 +219,6 @@ HRESULT Make(MenuKind kind, REFIID riid, void** ppv) {
 
 HRESULT CreateBsaManagerFactory(REFIID riid, void** ppv) { return Make(MenuKind::Bsa, riid, ppv); }
 HRESULT CreateHashMenuFactory(REFIID riid, void** ppv) { return Make(MenuKind::Hash, riid, ppv); }
+HRESULT CreatePapyrusMenuFactory(REFIID riid, void** ppv) { return Make(MenuKind::Papyrus, riid, ppv); }
 
 }  // namespace pse

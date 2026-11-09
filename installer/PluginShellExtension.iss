@@ -75,6 +75,7 @@ FinishedLabelNoIcons=Setup has finished installing [name] on your computer.%n%nR
 Name: "columns"; Description: "  Add columns to Explorer, the details pane and files tooltip (requires admin rights)"
 Name: "bsa"; Description: "  Browse .bsa archives in Explorer and add the BSA manager menu (read-only)"
 Name: "hashes"; Description: "  Add ""Hashes"" to the right-click menu of every file (SHA-256, CRC-32 and MD5)"
+Name: "papyrus"; Description: "  Add ""Decompile"" to .pex and ""Compile"" to .psc files in the right-click menu"
 Name: "hardlink"; Description: "  Add ""Hardlink"" to the right-click menu of every file (copy or open the path of its other link)"
 
 [Files]
@@ -284,6 +285,24 @@ begin
   Log(Format('regsvr32 %s -> code=%d', [Params, Code]));
 end;
 
+function PapyrusMenuRegistered: Boolean;
+begin
+  Result := RegKeyExists(HKCU, 'Software\Classes\SystemFileAssociations\.pex\shellex\ContextMenuHandlers\PluginShellExtensionPapyrus');
+end;
+
+// Runs regsvr32 /n /i:papyrus (or /u ...) on the installed DLL, for this user.
+procedure RunPapyrusRegistration(Install: Boolean);
+var
+  Params: String;
+  Code: Integer;
+begin
+  Params := '/s /n /i:papyrus "' + ExpandConstant('{app}\PluginShellExtension.dll') + '"';
+  if not Install then
+    Params := '/u ' + Params;
+  Exec(ExpandConstant('{sys}\regsvr32.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Log(Format('regsvr32 %s -> code=%d', [Params, Code]));
+end;
+
 function BsaBrowseRegistered: Boolean;
 begin
   Result := RegKeyExists(HKCU, 'Software\Classes\PluginShellExtension.BSA');
@@ -318,6 +337,10 @@ begin
       RunHashRegistration(True)
     else if HashMenuRegistered then
       RunHashRegistration(False);
+    if WizardIsTaskSelected('papyrus') then
+      RunPapyrusRegistration(True)
+    else if PapyrusMenuRegistered then
+      RunPapyrusRegistration(False);
     if WizardIsTaskSelected('bsa') then
       RunBsaRegistration(True)
     else if BsaBrowseRegistered then
@@ -335,6 +358,8 @@ begin
     // Unregister while the DLL and schema are still in place.
     if HashMenuRegistered then
       RunHashRegistration(False);
+    if PapyrusMenuRegistered then
+      RunPapyrusRegistration(False);
     if BsaBrowseRegistered then
       RunBsaRegistration(False);
     if ColumnsRegistered then

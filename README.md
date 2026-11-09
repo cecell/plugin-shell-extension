@@ -210,6 +210,8 @@ Localized strings packed in BSA archives (including LZ4-compressed ones) are
 read with [bsa-reader](https://github.com/cecell/bsa-reader) (GPL-3.0). `.tga` and `.fuz` headers are read with
 [beth-asset-metadata](https://github.com/cecell/beth-asset-metadata) (GPL-3.0).
 
+`.pex` and `.psc` files are decompiled and compiled with [skqe-papyrus-decompiler](https://github.com/cecell/skqe-papyrus-decompiler) (GPL-3.0).
+
 The inflate code in `src/inflate.cpp` is altered from puff, by Mark Adler, part
 of the [zlib](https://github.com/madler/zlib) distribution. Its notice is in that
 file.
