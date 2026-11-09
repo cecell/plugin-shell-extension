@@ -21,6 +21,34 @@
       <displayInfo displayType="String" defaultColumnWidth="9" alignment="Right"/>
     </propertyDescription>
 
+    <propertyDescription name="Cecell.PluginShellExtension.FuzVersion" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="18">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Fuz Ver"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="7" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.AudioFormat" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="19">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="16"/>
+      <labelInfo label="Audio Fmt"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="9"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.SampleRate" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="20">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Sample Rate"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="10" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.Channels" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="21">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Channels"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
+    </propertyDescription>
+
     <propertyDescription name="Cecell.PluginShellExtension.RecordCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="3">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
       <labelInfo label="#Records"/>

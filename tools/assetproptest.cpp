@@ -128,7 +128,8 @@ int wmain(int argc, wchar_t** argv) {
                 PWSTR text = nullptr;
                 PSGetNameFromPropertyKey(key, &name);
                 if (SUCCEEDED(PropVariantToStringAlloc(pv, &text))) {
-                    wprintf(L"  %s=%s\n", name ? name : L"?", text);
+                    if (name) wprintf(L"  %s=%s\n", name, text);
+                    else wprintf(L"  pid%u=%s\n", key.pid, text);
                     CoTaskMemFree(text);
                 }
                 CoTaskMemFree(name);

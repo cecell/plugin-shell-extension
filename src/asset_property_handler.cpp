@@ -181,6 +181,17 @@ private:
         if (a.bitRate) AddUInt32(PKEY_Audio_EncodingBitrate, a.bitRate);
         if (a.sampleRate) AddUInt32(PKEY_Audio_SampleRate, a.sampleRate);
         if (a.channels) AddUInt32(PKEY_Audio_ChannelCount, a.channels);
+        if (a.container != asset::AudioContainer::Fuz) return;
+        // Our own columns as well: Explorer doesn't offer Windows' sample rate
+        // and channel count in its list of columns.
+        if (a.sampleRate) AddUInt32(PROPERTYKEY{kPluginFmtid, kPidSampleRate}, a.sampleRate);
+        if (a.channels) AddUInt32(PROPERTYKEY{kPluginFmtid, kPidChannels}, a.channels);
+        AddUInt32(PROPERTYKEY{kPluginFmtid, kPidFuzVersion}, a.fuzVersion);
+        const wchar_t* format = a.payload == asset::AudioContainer::Xwm ? L"xWMA" : a.payload == asset::AudioContainer::Wav ? L"WAV" : nullptr;
+        if (format) {
+            Entry e{PROPERTYKEY{kPluginFmtid, kPidAudioFormat}, {}};
+            if (SUCCEEDED(InitPropVariantFromString(format, &e.value))) values_.push_back(e);
+        }
     }
 
     void LoadDds(IStream* stream, DWORD mode) {

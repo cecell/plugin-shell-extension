@@ -30,6 +30,10 @@ enum PluginPid : DWORD {
     kPidDirty = 15,         // String  True / False (#Deleted or #ITM non-zero), "Working", "MissingMaster"
     kPidTipStatus = 16,     // String  "Dirty: True    Is Light: False", one tooltip line (label hidden)
     kPidMipmaps = 17,       // String  "9 of 12" (.dds, from the asset property handler)
+    kPidFuzVersion = 18,    // UInt32  .fuz format version
+    kPidAudioFormat = 19,   // String  .fuz: "xWMA" or "WAV", the audio inside
+    kPidSampleRate = 20,    // UInt32  .fuz. Windows' own Sample rate isn't offered as a column
+    kPidChannels = 21,      // UInt32  .fuz. Nor is Windows' own Channels
 };
 
 HRESULT CreatePropertyHandlerFactory(REFIID riid, void** ppv);
