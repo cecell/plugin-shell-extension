@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Shell property schema for the Plugin Shell Extension property handler
+  Shell property schema for the WHAM property handler
   (src/property_handler.h). formatID and propIDs must match kPluginFmtid and
   the PluginPid values there. Registered by "regsvr32 /n /i:columns" (admin).
 -->

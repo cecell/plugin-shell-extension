@@ -1,7 +1,7 @@
-# Plugin Shell Extension
+# Windows Hyper Asset Manager - WHAM
 
 A Windows Explorer extension for Skyrim Special Edition plugins (`.esp`,
-`.esm`, `.esl`). Right-click a plugin and choose **Plugin properties** to see
+`.esm`, `.esl`). Right-click a plugin and open **Skyrim SE plugins** > **Plugin properties** to see
 what is inside it, in a window styled after the Windows Properties >
 **Details** tab. The same facts can also be shown as Explorer columns.
 
@@ -11,7 +11,7 @@ It only reads plugins; it never changes them.
 
 ## Download
 
-Get `PluginShellExtension-<version>-setup.exe` from the
+Get `WHAM-<version>-setup.exe` from the
 [latest release](https://github.com/cecell/plugin-shell-extension/releases/latest),
 or from [Nexus Mods](https://www.nexusmods.com/skyrimspecialedition/mods/197761).
 
@@ -136,7 +136,7 @@ file with two names, one in `Data` and one in the mod's staging folder.
 
 Run the setup. It opens on the GPL-3.0 licence, which has to be accepted,
 installs for the current user into
-`%LOCALAPPDATA%\Programs\Plugin Shell Extension` without an admin prompt
+`%LOCALAPPDATA%\Programs\WHAM` without an admin prompt
 (apart from the optional columns), and offers to open this README at the end.
 
 On Windows 11 the menu item is in the classic menu: right-click > **Show more
@@ -149,7 +149,7 @@ To uninstall, use Settings > Apps > Installed apps > **Plugin Shell
 Extension**.
 
 Silent install and uninstall use the usual Inno Setup switches:
-`PluginShellExtension-<version>-setup.exe /VERYSILENT`, and
+`WHAM-<version>-setup.exe /VERYSILENT`, and
 `unins000.exe /VERYSILENT` in the install folder.
 
 Pre-release builds before 0.90 used a different name. If one is installed,
@@ -182,7 +182,7 @@ Windows runner, not on a personal PC:
   provenance, which ties each file's hash to the commit and the run:
 
 ```
-gh attestation verify PluginShellExtension-<version>-setup.exe --repo cecell/plugin-shell-extension
+gh attestation verify WHAM-<version>-setup.exe --repo cecell/plugin-shell-extension
 ```
 
 0.90 was built while the repository was still private, so it has no
@@ -226,7 +226,7 @@ Saved folder views are stored with [JSON for Modern C++](https://github.com/nloh
 >
 > THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Plugin Shell Extension was written with the assistance of Claude by Anthropic.
+WHAM was written with the assistance of Claude by Anthropic.
 Many have negative feelings towards AI but it has been a life saver for people
 like me who struggle with cognitive disabilities. I hope this software is
 helpful.
@@ -247,7 +247,7 @@ build.cmd
 Outputs, in `build\`:
 
 - `bin\PluginShellExtension.dll`: the extension (static CRT, no redistributable needed)
-- `PluginShellExtension-<version>-setup.exe`: the installer
+- `WHAM-<version>-setup.exe`: the installer
 - `plugininfo.exe <plugin>...`: prints the same fields, plus a self-check that the records and groups walked add up to the header count
 - `menutest.exe <plugin> [--invoke]`: builds Explorer's right-click menu for a file and checks the item is there (and opens)
 - `bsabrowsetest.exe`: walks archives through the BSA folder, and drives it in Windows' real folder view

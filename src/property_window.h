@@ -1,4 +1,4 @@
-// The Plugin Shell Extension window: a copy of the Explorer Properties dialog's
+// The WHAM window: a copy of the Explorer Properties dialog's
 // Details tab, filled from plugin_parser.
 #pragma once
 

@@ -65,7 +65,7 @@ jobs:
         shell: pwsh
         run: |
           $dist = New-Item -ItemType Directory -Force dist
-          Copy-Item build\bin\PluginShellExtension.dll, build\PluginShellExtension-*-setup.exe $dist
+          Copy-Item build\bin\PluginShellExtension.dll, build\WHAM-*-setup.exe $dist
           $lines = Get-ChildItem $dist -File | Sort-Object Name | ForEach-Object {
             "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
           }
@@ -84,7 +84,7 @@ jobs:
         with:
           subject-path: |
             dist/PluginShellExtension.dll
-            dist/PluginShellExtension-*-setup.exe
+            dist/WHAM-*-setup.exe
 
       - uses: actions/upload-artifact@v5
         with:

@@ -1,5 +1,6 @@
 #include "tool_windows.h"
 #include "papyrus_tools.h"
+#include "plugin_tools.h"
 #include "work_budget.h"
 
 #include <commctrl.h>
@@ -1168,6 +1169,32 @@ void RemoveFolderViewAsync(const std::wstring& name) {
     StartUserJob([name] {
         const std::wstring ask = L"Remove the saved view \"" + name + L"\"?";
         if (MessageBoxW(nullptr, ask.c_str(), L"Folder views", MB_YESNO | MB_ICONQUESTION | MB_SETFOREGROUND) == IDYES) RemoveFolderView(name);
+    });
+}
+
+void UpgradeHeadersAsync(const std::vector<std::wstring>& paths) {
+    StartUserJob([paths] {
+        std::wstring report;
+        size_t upgraded = 0, unchanged = 0, failed = 0;
+        for (const std::wstring& path : paths) {
+            const HeaderUpgradeResult r = UpgradePluginHeader(path);
+            report += r.text + L"\r\n";
+            if (r.status == 0) {
+                ++upgraded;
+                SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, path.c_str(), nullptr);
+            } else if (r.status == 3) {
+                ++failed;
+            } else {
+                ++unchanged;
+            }
+        }
+        // A short list reads better in a message than in the scrolling report.
+        if (paths.size() <= 8) {
+            MessageBoxW(nullptr, report.c_str(), L"Upgrade header", MB_OK | MB_SETFOREGROUND | (failed ? MB_ICONWARNING : MB_ICONINFORMATION));
+            return;
+        }
+        const std::wstring summary = std::to_wstring(upgraded) + L" upgraded, " + std::to_wstring(unchanged) + L" left unchanged, " + std::to_wstring(failed) + L" failed.\r\n\r\n";
+        RunReportWindow(L"Upgrade header", failed ? 2 : unchanged ? 1 : 0, summary + report, L"");
     });
 }
 

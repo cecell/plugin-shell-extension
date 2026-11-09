@@ -86,7 +86,7 @@ namespace {
 // Windows' own "open this as a folder" command, the one zip files use.
 const wchar_t kExecuteFolder[] = L"{11dbb47c-a525-400b-9e80-a54615a090c0}";
 const wchar_t kExplorerCommand[] = L"%SystemRoot%\\Explorer.exe /idlist,%I,%L";
-const wchar_t kBsaAppName[] = L"Plugin Shell Extension";
+const wchar_t kBsaAppName[] = L"WHAM";
 
 // The command holds %SystemRoot%, so it has to be stored as an expandable string, as zip's is.
 LSTATUS SetExplorerCommand(HKEY root, const std::wstring& commandKey) {
@@ -105,7 +105,7 @@ LSTATUS WriteHandler(HKEY root, const std::wstring& clsidKey, const wchar_t* nam
 
 bool InstallHashMenu(HKEY root, const std::wstring& classes, const std::wstring& dllPath) {
     const std::wstring clsid = classes + L"CLSID\\" + kHashMenuClsidString;
-    LSTATUS st = WriteHandler(root, clsid, L"Plugin Shell Extension hashes menu", dllPath);
+    LSTATUS st = WriteHandler(root, clsid, L"WHAM hashes menu", dllPath);
     if (st == ERROR_SUCCESS) st = SetString(root, classes + L"*\\shellex\\ContextMenuHandlers\\PluginShellExtensionHashes", nullptr, kHashMenuClsidString);
     if (st != ERROR_SUCCESS) RemoveHashMenu(root, classes);
     return st == ERROR_SUCCESS;
@@ -124,7 +124,7 @@ const wchar_t* const kBsaDropTargets[] = {L"Directory\\shellex", L"Directory\\Ba
 
 bool InstallFolderViewsMenu(HKEY root, const std::wstring& classes, const std::wstring& dllPath) {
     const std::wstring clsid = classes + L"CLSID\\" + kFolderViewsMenuClsidString;
-    LSTATUS st = WriteHandler(root, clsid, L"Plugin Shell Extension folder views menu", dllPath);
+    LSTATUS st = WriteHandler(root, clsid, L"WHAM folder views menu", dllPath);
     if (st == ERROR_SUCCESS) st = SetString(root, classes + L"Directory\\Background\\shellex\\ContextMenuHandlers\\PluginShellExtensionFolderViews", nullptr, kFolderViewsMenuClsidString);
     if (st != ERROR_SUCCESS) RemoveFolderViewsMenu(root, classes);
     return st == ERROR_SUCCESS;
@@ -141,7 +141,7 @@ void RemoveFolderViewsMenu(HKEY root, const std::wstring& classes) {
 
 bool InstallPapyrusMenu(HKEY root, const std::wstring& classes, const std::wstring& dllPath) {
     const std::wstring clsid = classes + L"CLSID\\" + kPapyrusMenuClsidString;
-    LSTATUS st = WriteHandler(root, clsid, L"Plugin Shell Extension Papyrus menu", dllPath);
+    LSTATUS st = WriteHandler(root, clsid, L"WHAM Papyrus menu", dllPath);
     for (const wchar_t* ext : {L".pex", L".psc"}) {
         if (st == ERROR_SUCCESS) st = SetString(root, classes + L"SystemFileAssociations\\" + ext + L"\\shellex\\ContextMenuHandlers\\PluginShellExtensionPapyrus", nullptr, kPapyrusMenuClsidString);
     }
@@ -165,7 +165,7 @@ bool InstallBsaBrowser(HKEY root, const std::wstring& classes, const std::wstrin
     const std::wstring prog = classes + kBsaProgId;
     const std::wstring extKey = classes + ext;
     const std::wstring verb = classes + L"SystemFileAssociations\\" + ext + L"\\shell\\BrowseContents";
-    LSTATUS st = SetString(root, clsid, nullptr, L"Plugin Shell Extension BSA folder");
+    LSTATUS st = SetString(root, clsid, nullptr, L"WHAM BSA folder");
     if (st == ERROR_SUCCESS) st = SetString(root, clsid + L"\\InprocServer32", nullptr, dllPath);
     if (st == ERROR_SUCCESS) st = SetString(root, clsid + L"\\InprocServer32", L"ThreadingModel", L"Apartment");
     if (st == ERROR_SUCCESS) {
@@ -188,10 +188,10 @@ bool InstallBsaBrowser(HKEY root, const std::wstring& classes, const std::wstrin
     if (st == ERROR_SUCCESS) st = SetString(root, prog + L"\\shell\\open\\command", L"DelegateExecute", kExecuteFolder);
     const std::wstring managerClsid = classes + L"CLSID\\" + kBsaManagerClsidString;
     const std::wstring manager = classes + L"SystemFileAssociations\\" + ext + L"\\shellex\\ContextMenuHandlers\\PluginShellExtensionBsaManager";
-    if (st == ERROR_SUCCESS) st = WriteHandler(root, managerClsid, L"Plugin Shell Extension BSA manager", dllPath);
+    if (st == ERROR_SUCCESS) st = WriteHandler(root, managerClsid, L"WHAM BSA manager", dllPath);
     if (st == ERROR_SUCCESS) st = SetString(root, manager, nullptr, kBsaManagerClsidString);
     const std::wstring dropClsid = classes + L"CLSID\\" + kBsaDropClsidString;
-    if (st == ERROR_SUCCESS) st = WriteHandler(root, dropClsid, L"Plugin Shell Extension BSA manager (right-drag)", dllPath);
+    if (st == ERROR_SUCCESS) st = WriteHandler(root, dropClsid, L"WHAM BSA manager (right-drag)", dllPath);
     for (const wchar_t* target : kBsaDropTargets) {
         if (st == ERROR_SUCCESS) st = SetString(root, classes + target + L"\\DragDropHandlers\\PluginShellExtensionBsaManager", nullptr, kBsaDropClsidString);
     }
@@ -257,7 +257,7 @@ bool InstallDdsHandler(HKEY root, const std::wstring& classes, const std::wstrin
     DWORD size = sizeof(current);
     const bool had = RegGetValueW(root, handlerKey.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, current, &size) == ERROR_SUCCESS && current[0];
     const bool alreadyOurs = had && _wcsicmp(current, kDdsPropertyHandlerClsidString) == 0;
-    LSTATUS st = SetString(root, clsidKey, nullptr, L"Plugin Shell Extension .dds property handler");
+    LSTATUS st = SetString(root, clsidKey, nullptr, L"WHAM .dds property handler");
     if (st == ERROR_SUCCESS) st = SetString(root, clsidKey + L"\\InprocServer32", nullptr, dllPath);
     if (st == ERROR_SUCCESS) st = SetString(root, clsidKey + L"\\InprocServer32", L"ThreadingModel", L"Both");
     // On a reinstall the handler is already ours: keep what was recorded the first time.
@@ -297,7 +297,7 @@ HRESULT RegisterPropertyHandler(const std::wstring& dllPath, const std::wstring&
     // CLSID in HKLM as well: the Windows Search indexer runs without this
     // user's HKCU and also loads property handlers.
     std::wstring clsidKey = std::wstring(kClasses) + L"CLSID\\" + kPropertyHandlerClsidString;
-    LSTATUS st = SetString(HKEY_LOCAL_MACHINE, clsidKey, nullptr, L"Plugin Shell Extension property handler");
+    LSTATUS st = SetString(HKEY_LOCAL_MACHINE, clsidKey, nullptr, L"WHAM property handler");
     if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, clsidKey + L"\\InprocServer32", nullptr, dllPath);
     if (st == ERROR_SUCCESS)
         st = SetString(HKEY_LOCAL_MACHINE, clsidKey + L"\\InprocServer32", L"ThreadingModel", L"Both");
@@ -316,7 +316,7 @@ HRESULT RegisterPropertyHandler(const std::wstring& dllPath, const std::wstring&
     // The asset handler reads a stream, so Windows can keep it out of Explorer's
     // process. An extension another handler already owns is left alone.
     const std::wstring assetKey = std::wstring(kClasses) + L"CLSID\\" + kAssetPropertyHandlerClsidString;
-    if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, assetKey, nullptr, L"Plugin Shell Extension asset property handler");
+    if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, assetKey, nullptr, L"WHAM asset property handler");
     if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, assetKey + L"\\InprocServer32", nullptr, dllPath);
     if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, assetKey + L"\\InprocServer32", L"ThreadingModel", L"Both");
     for (const wchar_t* ext : kAssetExtensions) {

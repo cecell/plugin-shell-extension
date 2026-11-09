@@ -1,5 +1,5 @@
-// IShellExtInit + IContextMenu handler that adds "Plugin properties" to the
-// context menu of .esp/.esm/.esl files.
+// IShellExtInit + IContextMenu handler that adds the "Skyrim SE plugins" submenu
+// to the context menu of .esp/.esm/.esl files.
 #include "context_menu.h"
 
 #include <shellapi.h>
@@ -14,6 +14,7 @@
 #include "debug_log.h"
 #include "property_window.h"
 #include "registration.h"
+#include "tool_windows.h"
 
 namespace pse {
 
@@ -23,8 +24,14 @@ namespace {
 
 constexpr wchar_t kVerbW[] = L"pluginshellextension";
 constexpr char kVerbA[] = "pluginshellextension";
-constexpr wchar_t kMenuText[] = L"Plugin properties";
+constexpr wchar_t kUpgradeVerbW[] = L"pluginshellextensionupgrade";
+constexpr char kUpgradeVerbA[] = "pluginshellextensionupgrade";
+constexpr wchar_t kSubmenuText[] = L"Skyrim SE plugins";
+constexpr wchar_t kPropertiesText[] = L"Plugin properties";
+constexpr wchar_t kUpgradeText[] = L"Upgrade header";
 constexpr wchar_t kHelpText[] = L"Shows the header, masters and record groups of this plugin.";
+constexpr wchar_t kUpgradeHelpText[] = L"Changes a 1.70 plugin header to 1.71.";
+enum { kCommandProperties, kCommandUpgrade, kCommandCount };
 constexpr size_t kMaxWindows = 16;
 
 bool IsPluginPath(const std::wstring& path) {
@@ -91,13 +98,21 @@ public:
     IFACEMETHODIMP QueryContextMenu(HMENU menu, UINT index, UINT idFirst, UINT, UINT flags) override {
         DebugLog(L"QueryContextMenu flags=0x%X paths=%zu", flags, paths_.size());
         if ((flags & CMF_DEFAULTONLY) || paths_.empty()) return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, 0);
+        HMENU sub = CreatePopupMenu();
+        if (!sub) return E_OUTOFMEMORY;
+        AppendMenuW(sub, MF_STRING, idFirst + kCommandUpgrade, kUpgradeText);
+        AppendMenuW(sub, MF_STRING, idFirst + kCommandProperties, kPropertiesText);
         MENUITEMINFOW mii{sizeof(mii)};
-        mii.fMask = MIIM_STRING | MIIM_ID | MIIM_FTYPE;
+        mii.fMask = MIIM_STRING | MIIM_SUBMENU | MIIM_FTYPE;
         mii.fType = MFT_STRING;
-        mii.wID = idFirst;
-        mii.dwTypeData = const_cast<wchar_t*>(kMenuText);
-        if (!InsertMenuItemW(menu, index, TRUE, &mii)) return HRESULT_FROM_WIN32(GetLastError());
-        return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, 1);
+        mii.hSubMenu = sub;
+        mii.dwTypeData = const_cast<wchar_t*>(kSubmenuText);
+        if (!InsertMenuItemW(menu, index, TRUE, &mii)) {
+            const DWORD error = GetLastError();
+            DestroyMenu(sub);
+            return HRESULT_FROM_WIN32(error);
+        }
+        return MAKE_HRESULT(SEVERITY_SUCCESS, FACILITY_NULL, kCommandCount);
     }
 
     IFACEMETHODIMP InvokeCommand(CMINVOKECOMMANDINFO* ici) override {
@@ -106,12 +121,24 @@ public:
         auto* icix = reinterpret_cast<CMINVOKECOMMANDINFOEX*>(ici);
         DebugLog(L"InvokeCommand cbSize=%u mask=0x%X verb=%p verbW=%p", ici->cbSize, ici->fMask, ici->lpVerb,
                  unicode ? icix->lpVerbW : nullptr);
+        UINT command = kCommandCount;
         if (unicode && !IS_INTRESOURCE(icix->lpVerbW)) {
-            if (_wcsicmp(icix->lpVerbW, kVerbW) != 0) return E_FAIL;
+            if (_wcsicmp(icix->lpVerbW, kVerbW) == 0) command = kCommandProperties;
+            else if (_wcsicmp(icix->lpVerbW, kUpgradeVerbW) == 0) command = kCommandUpgrade;
         } else if (!IS_INTRESOURCE(ici->lpVerb)) {
-            if (_stricmp(ici->lpVerb, kVerbA) != 0) return E_FAIL;
-        } else if (LOWORD(reinterpret_cast<UINT_PTR>(ici->lpVerb)) != 0) {
-            return E_FAIL;
+            if (_stricmp(ici->lpVerb, kVerbA) == 0) command = kCommandProperties;
+            else if (_stricmp(ici->lpVerb, kUpgradeVerbA) == 0) command = kCommandUpgrade;
+        } else {
+            command = LOWORD(reinterpret_cast<UINT_PTR>(ici->lpVerb));
+        }
+        if (command >= kCommandCount) return E_FAIL;
+        if (command == kCommandUpgrade) {
+            try {
+                UpgradeHeadersAsync(paths_);
+            } catch (...) {
+                return E_OUTOFMEMORY;
+            }
+            return S_OK;
         }
         std::vector<std::wstring> paths = paths_;
         if (paths.size() > kMaxWindows) paths.resize(kMaxWindows);
@@ -121,16 +148,17 @@ public:
 
     IFACEMETHODIMP GetCommandString(UINT_PTR idCmd, UINT type, UINT*, CHAR* name, UINT cch) override {
         DebugLog(L"GetCommandString id=%zu type=0x%X", idCmd, type);
-        if (idCmd != 0) return E_INVALIDARG;
+        if (idCmd >= kCommandCount) return E_INVALIDARG;
+        const bool upgrade = idCmd == kCommandUpgrade;
         switch (type) {
             case GCS_VERBW:
-                return StringCchCopyW(reinterpret_cast<wchar_t*>(name), cch, kVerbW);
+                return StringCchCopyW(reinterpret_cast<wchar_t*>(name), cch, upgrade ? kUpgradeVerbW : kVerbW);
             case GCS_VERBA:
-                return StringCchCopyA(name, cch, kVerbA);
+                return StringCchCopyA(name, cch, upgrade ? kUpgradeVerbA : kVerbA);
             case GCS_HELPTEXTW:
-                return StringCchCopyW(reinterpret_cast<wchar_t*>(name), cch, kHelpText);
+                return StringCchCopyW(reinterpret_cast<wchar_t*>(name), cch, upgrade ? kUpgradeHelpText : kHelpText);
             case GCS_HELPTEXTA:
-                return StringCchCopyA(name, cch, "Shows the header, masters and record groups of this plugin.");
+                return StringCchCopyA(name, cch, upgrade ? "Changes a 1.70 plugin header to 1.71." : "Shows the header, masters and record groups of this plugin.");
             case GCS_VALIDATEW:
             case GCS_VALIDATEA:
                 return S_OK;

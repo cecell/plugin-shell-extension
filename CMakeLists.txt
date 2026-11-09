@@ -88,6 +88,7 @@ add_library(psetools STATIC
     src/bsa_tools.cpp
     src/papyrus_tools.cpp
     src/folder_views.cpp
+    src/plugin_tools.cpp
     src/disk_cache.cpp)
 target_include_directories(psetools PUBLIC src)
 target_link_libraries(psetools PUBLIC psepattern bsa::reader skqe::papyrus bcrypt advapi32 shell32 ole32 propsys shlwapi)
@@ -118,7 +119,7 @@ target_link_libraries(hardlinktest PRIVATE shell32 ole32)
 
 set_target_properties(PluginShellExtension PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# The installer: build/PluginShellExtension-<version>-setup.exe, built with Inno
+# The installer: build/WHAM-<version>-setup.exe, built with Inno
 # Setup (6 or newer) when ISCC.exe is found (winget install JRSoftware.InnoSetup).
 find_program(ISCC_EXE ISCC
     PATHS "$ENV{LOCALAPPDATA}/Programs/Inno Setup 7" "$ENV{ProgramFiles}/Inno Setup 7"
@@ -127,7 +128,7 @@ find_program(ISCC_EXE ISCC
           "C:/Program Files (x86)/Inno Setup 6"
     NO_DEFAULT_PATH)
 if(ISCC_EXE)
-    set(PSE_SETUP ${CMAKE_BINARY_DIR}/PluginShellExtension-${PROJECT_VERSION}-setup.exe)
+    set(PSE_SETUP ${CMAKE_BINARY_DIR}/WHAM-${PROJECT_VERSION}-setup.exe)
     add_custom_command(OUTPUT ${PSE_SETUP}
         COMMAND ${ISCC_EXE} /Q /DAppVersion=${PROJECT_VERSION} /DBinDir=${CMAKE_BINARY_DIR}/bin
             /DOutDir=${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/installer/PluginShellExtension.iss

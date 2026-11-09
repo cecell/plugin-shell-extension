@@ -42,7 +42,8 @@ V1 = "https://api.nexusmods.com/v1"
 GAME = "skyrimspecialedition"
 MOD = "197761"                      # URL id of the Nexus page
 FILE_GROUP = "8293728"              # the "Plugin Shell Extension" file on that page
-FILE_NAME = "Plugin Shell Extension"
+FILE_NAME = "WHAM"
+OLD_FILE_NAME = "Plugin Shell Extension"  # what the page's file was called before the rename
 REPO_URL = "https://github.com/cecell/plugin-shell-extension"
 UA = "plugin-shell-extension-release/1.0"
 SKIP_SECTIONS = ("upgrading", "verification")
@@ -126,13 +127,13 @@ def check_and_zip(assets: Path, version: str) -> tuple[Path, bytes]:
         if ln.strip():
             digest, name = ln.split(None, 1)
             sums[name.strip().lstrip("*")] = digest.lower()
-    setup = assets / f"PluginShellExtension-{version}-setup.exe"
+    setup = assets / f"WHAM-{version}-setup.exe"
     if not setup.is_file():
         raise SystemExit(f"{setup.name} is not among the release assets")
     actual = hashlib.sha256(setup.read_bytes()).hexdigest()
     if sums.get(setup.name) != actual:
         raise SystemExit(f"{setup.name}: SHA-256 {actual} does not match SHA256SUMS.txt")
-    out = assets.parent / f"PluginShellExtension-{version}.zip"
+    out = assets.parent / f"WHAM-{version}.zip"
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         z.write(setup, setup.name)
         z.write(assets / "SHA256SUMS.txt", "SHA256SUMS.txt")
@@ -154,7 +155,7 @@ def main() -> int:
 
     mod_id = call("GET", f"{V3}/games/{GAME}/mods/{MOD}")["data"]["id"]
     versions = call("GET", f"{V3}/mod-files/{FILE_GROUP}/versions")["data"]["versions"]
-    if not versions or versions[0]["file"]["name"] != FILE_NAME:
+    if not versions or versions[0]["file"]["name"] not in (FILE_NAME, OLD_FILE_NAME):
         raise SystemExit(f"file group {FILE_GROUP} is not {FILE_NAME!r} any more; update FILE_GROUP")
     on_nexus = any(v["version"] == version for v in versions)
     logged = call("GET", f"{V1}/games/{GAME}/mods/{MOD}/changelogs.json") or {}

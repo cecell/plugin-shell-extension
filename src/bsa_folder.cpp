@@ -808,7 +808,7 @@ private:
         const ArchivePtr& archive = folder_->GetArchive();
         std::vector<uint8_t> data;
         if (!archive->Read(node, &data)) {
-            MessageBoxW(hwnd, L"This file couldn't be read from the archive.", L"Plugin Shell Extension", MB_ICONERROR);
+            MessageBoxW(hwnd, L"This file couldn't be read from the archive.", L"WHAM", MB_ICONERROR);
             return;
         }
         wchar_t temp[MAX_PATH];

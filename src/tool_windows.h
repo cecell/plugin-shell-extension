@@ -19,6 +19,7 @@ void PapyrusAsync(const std::vector<std::wstring>& paths, bool compile);
 void SaveFolderViewAsync(FolderViewState state);
 void RemoveFolderViewAsync(const std::wstring& name);
 void ShowMessageAsync(const std::wstring& title, const std::wstring& text);
+void UpgradeHeadersAsync(const std::vector<std::wstring>& paths);
 // Asks for a name. False when cancelled. A non-empty png saves a picture and closes.
 bool RunFolderViewNameWindow(std::wstring& name, const std::wstring& png);
 void ShowHashWindowAsync(const std::wstring& path);

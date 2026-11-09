@@ -1,4 +1,4 @@
-; Inno Setup (6.6 or newer) script for the Plugin Shell Extension shell extension.
+; Inno Setup (6.6 or newer) script for the WHAM shell extension.
 ; Built by CMake (target "installer"); can also be compiled by hand:
 ;   ISCC.exe /DAppVersion=0.90 /DBinDir=..\build\bin /DOutDir=..\build installer\PluginShellExtension.iss
 ;
@@ -18,7 +18,7 @@
   #define OutDir "..\build"
 #endif
 
-#define AppName "Plugin Shell Extension"
+#define AppName "Windows Hyper Asset Manager - WHAM"
 #define Clsid "{{1D4348E0-3A45-489E-8022-6A2A883E9D94}"
 #define ClsidKey "Software\Classes\CLSID\" + Clsid
 #define Sfa "Software\Classes\SystemFileAssociations"
@@ -39,11 +39,11 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher=Cecell
-AppComments=Adds "Plugin properties" to the right-click menu of Skyrim plugins (.esp, .esm, .esl).
+AppComments=Explorer columns, previews and tools for Skyrim plugins, textures, audio, scripts and archives.
 VersionInfoVersion={#AppVersion}
 VersionInfoDescription={#AppName} Setup
 PrivilegesRequired=lowest
-DefaultDirName={autopf}\{#AppName}
+DefaultDirName={autopf}\WHAM
 DisableProgramGroupPage=yes
 ; The licence is the first page.
 DisableWelcomePage=yes
@@ -60,7 +60,7 @@ ChangesAssociations=yes
 ; asking the user to close Explorer.
 CloseApplications=no
 OutputDir={#OutDir}
-OutputBaseFilename=PluginShellExtension-{#AppVersion}-setup
+OutputBaseFilename=WHAM-{#AppVersion}-setup
 UninstallDisplayName={#AppName}
 SetupIconFile=icon\PluginShellExtension.ico
 UninstallDisplayIcon={app}\PluginShellExtension.ico
@@ -69,7 +69,7 @@ UninstallDisplayIcon={app}\PluginShellExtension.ico
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
-FinishedLabelNoIcons=Setup has finished installing [name] on your computer.%n%nRight-click a .esp, .esm or .esl file and choose "Plugin properties". On Windows 11 it is under "Show more options" (or Shift+right-click).
+FinishedLabelNoIcons=Setup has finished installing [name] on your computer.%n%nRight-click a .esp, .esm or .esl file and open "Skyrim SE plugins". On Windows 11 it is under "Show more options" (or Shift+right-click).
 
 [Tasks]
 Name: "columns"; Description: "  Add columns to Explorer, the details pane and files tooltip (requires admin rights)"
@@ -97,7 +97,7 @@ Type: filesandordirs; Name: "{localappdata}\Plugin Shell Extension"
 
 [Registry]
 ; COM server
-Root: HKA; Subkey: "{#ClsidKey}"; ValueType: string; ValueData: "Plugin Shell Extension context menu"; Flags: uninsdeletekey
+Root: HKA; Subkey: "{#ClsidKey}"; ValueType: string; ValueData: "WHAM context menu"; Flags: uninsdeletekey
 Root: HKA; Subkey: "{#ClsidKey}\InprocServer32"; ValueType: string; ValueData: "{app}\PluginShellExtension.dll"
 Root: HKA; Subkey: "{#ClsidKey}\InprocServer32"; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"
 ; Context-menu handler for each plugin extension. The parent keys are removed
@@ -115,7 +115,7 @@ Root: HKA; Subkey: "{#Sfa}\.esl\shellex"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esl\shellex\ContextMenuHandlers"; Flags: uninsdeletekeyifempty
 Root: HKA; Subkey: "{#Sfa}\.esl\shellex\ContextMenuHandlers\PluginShellExtension"; ValueType: string; ValueData: "{#Clsid}"; Flags: uninsdeletekey
 ; Optional "Hardlink" entry on every file's context menu (src/hardlink_menu.cpp).
-Root: HKA; Subkey: "{#HardlinkClsidKey}"; ValueType: string; ValueData: "Plugin Shell Extension hardlink menu"; Flags: uninsdeletekey; Tasks: hardlink
+Root: HKA; Subkey: "{#HardlinkClsidKey}"; ValueType: string; ValueData: "WHAM hardlink menu"; Flags: uninsdeletekey; Tasks: hardlink
 Root: HKA; Subkey: "{#HardlinkClsidKey}\InprocServer32"; ValueType: string; ValueData: "{app}\PluginShellExtension.dll"; Tasks: hardlink
 Root: HKA; Subkey: "{#HardlinkClsidKey}\InprocServer32"; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Apartment"; Tasks: hardlink
 Root: HKA; Subkey: "{#HardlinkMenuKey}"; ValueType: string; ValueData: "{#HardlinkClsid}"; Flags: uninsdeletekey; Tasks: hardlink
@@ -182,7 +182,7 @@ end;
 procedure AddTasksPageText;
 begin
   WizardForm.TasksList.Height := ScaleY(150);
-  AiNotice := AddPageText('Plugin Shell Extension was written with the assistance of Claude by Anthropic. ' +
+  AiNotice := AddPageText('WHAM was written with the assistance of Claude by Anthropic. ' +
     'Many have negative feelings towards AI but it has been a life saver for people like me who struggle ' +
     'with cognitive disabilities. I hope this software is helpful.');
   AiNotice.Top := WizardForm.TasksList.Top + WizardForm.TasksList.Height + ScaleY(16);

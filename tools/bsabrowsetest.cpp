@@ -27,6 +27,7 @@
 
 #include "bsa_tools.h"
 #include "papyrus_tools.h"
+#include "plugin_tools.h"
 #include "folder_views.h"
 #include <exdisp.h>
 #include <shlguid.h>
@@ -518,6 +519,58 @@ int BsaDrop(const wchar_t* dllPath, const wchar_t* source, const wchar_t* target
     return 0;
 }
 
+int HeaderUpgrade(const wchar_t* path) {
+    const pse::HeaderUpgradeResult r = pse::UpgradePluginHeader(path);
+    wprintf(L"%d %ls\n", r.status, r.text.c_str());
+    return r.status;
+}
+
+// The plugin menu as Explorer drives it; clicks Upgrade header and closes its message.
+int PluginMenu(const wchar_t* dllPath, const wchar_t* plugin) {
+    using Microsoft::WRL::ComPtr;
+    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    HMODULE dll = LoadLibraryW(dllPath);
+    auto get = dll ? reinterpret_cast<HRESULT(__stdcall*)(REFCLSID, REFIID, void**)>(GetProcAddress(dll, "DllGetClassObject")) : nullptr;
+    ComPtr<IClassFactory> factory;
+    ComPtr<IShellExtInit> init;
+    ComPtr<IShellItem> item;
+    ComPtr<IDataObject> data;
+    if (!get || FAILED(get(pse::kClsidContextMenu, IID_PPV_ARGS(&factory))) || FAILED(factory->CreateInstance(nullptr, IID_PPV_ARGS(&init)))) return 2;
+    if (FAILED(SHCreateItemFromParsingName(plugin, nullptr, IID_PPV_ARGS(&item))) || FAILED(item->BindToHandler(nullptr, BHID_DataObject, IID_PPV_ARGS(&data)))) return 2;
+    if (FAILED(init->Initialize(nullptr, data.Get(), nullptr))) return 3;
+    ComPtr<IContextMenu> menu;
+    init.As(&menu);
+    HMENU popup = CreatePopupMenu();
+    const HRESULT added = menu->QueryContextMenu(popup, 0, 100, 200, CMF_NORMAL);
+    wchar_t text[260] = {};
+    GetMenuStringW(popup, 0, text, ARRAYSIZE(text), MF_BYPOSITION);
+    HMENU sub = GetSubMenu(popup, 0);
+    wprintf(L"added=%d top=[%ls]", HRESULT_CODE(added), text);
+    for (int i = 0; sub && i < GetMenuItemCount(sub); ++i) {
+        GetMenuStringW(sub, i, text, ARRAYSIZE(text), MF_BYPOSITION);
+        wprintf(L" [%ls id=%u]", text, GetMenuItemID(sub, i));
+    }
+    wprintf(L"\n");
+    CMINVOKECOMMANDINFO info{sizeof(info)};
+    info.lpVerb = MAKEINTRESOURCEA(1);
+    info.nShow = SW_SHOWNORMAL;
+    wprintf(L"invoke=0x%08lx\n", static_cast<unsigned long>(menu->InvokeCommand(&info)));
+    for (int i = 0; i < 100; ++i) {
+        Sleep(100);
+        if (HWND box = FindWindowW(L"#32770", L"Upgrade header")) {
+            HWND label = FindWindowExW(box, nullptr, L"Static", nullptr);
+            while (label && !GetWindowTextLengthW(label)) label = FindWindowExW(box, label, L"Static", nullptr);
+            if (label) GetWindowTextW(label, text, ARRAYSIZE(text));
+            wprintf(L"message=[%ls]\n", text);
+            PostMessageW(box, WM_CLOSE, 0, 0);
+            Sleep(400);
+            return 0;
+        }
+    }
+    wprintf(L"no message\n");
+    return 1;
+}
+
 int NameWindowShot(const wchar_t* dllPath, const wchar_t* png) {
     HMODULE dll = LoadLibraryW(dllPath);
     auto run = dll ? reinterpret_cast<int(__stdcall*)(const wchar_t*)>(GetProcAddress(dll, "PseFolderViewNameSnapshot")) : nullptr;
@@ -603,8 +656,8 @@ int Registration() {
     Check(pse::InstallBsaBrowser(HKEY_CURRENT_USER, classes, ext, L"C:\\x.dll"), L"install succeeds");
     Check(!Exists(extKey + L"\\OpenWithProgids"), L"no OpenWithProgids entry is left to trigger the program prompt");
     Check(Exists(prog + L"\\DefaultIcon"), L"the type has the zip icon");
-    Check(Read(prog + L"\\shell\\open", L"FriendlyAppName") == L"Plugin Shell Extension", L"the open verb has our name");
-    Check(Read(prog + L"\\Application", L"ApplicationName") == L"Plugin Shell Extension", L"the type has our application name");
+    Check(Read(prog + L"\\shell\\open", L"FriendlyAppName") == L"WHAM", L"the open verb has our name");
+    Check(Read(prog + L"\\Application", L"ApplicationName") == L"WHAM", L"the type has our application name");
     Check(Read(extKey, nullptr) == pse::kBsaProgId, L"the extension points at our type");
     Check(Read(prog, pse::kPreviousProgIdValue) == old, L"the previous type is recorded");
     Check(Read(prog + L"\\CLSID", nullptr) == pse::kBsaFolderClsidString, L"the type names the folder");
@@ -919,6 +972,8 @@ int wmain(int argc, wchar_t** argv) {
     if (argc == 3 && !wcscmp(argv[1], L"--test")) return TestArchive(argv[2]);
     if (argc == 3 && !wcscmp(argv[1], L"--hash")) return Hash(argv[2]);
     if (argc == 6 && !wcscmp(argv[1], L"--hashwindow")) return HashWindow(argv[2], argv[3], argv[4], argv[5]);
+    if (argc == 3 && !wcscmp(argv[1], L"--upgrade")) return HeaderUpgrade(argv[2]);
+    if (argc == 4 && !wcscmp(argv[1], L"--pluginmenu")) return PluginMenu(argv[2], argv[3]);
     if (argc == 6 && !wcscmp(argv[1], L"--bsadrop")) return BsaDrop(argv[2], argv[3], argv[4], _wtoi(argv[5]));
     if (argc == 3 && !wcscmp(argv[1], L"--folderviews")) return views::Run(argv[2]);
     if (argc == 4 && !wcscmp(argv[1], L"--namewindow")) return NameWindowShot(argv[2], argv[3]);
