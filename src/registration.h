@@ -53,6 +53,8 @@ inline constexpr wchar_t kPreviousProgIdValue[] = L"PreviousProgId";
 // {C4A7B1D2-6E3F-4A58-B9D1-7F20E6C3A914}
 inline constexpr GUID kClsidBsaManager = {0xc4a7b1d2, 0x6e3f, 0x4a58, {0xb9, 0xd1, 0x7f, 0x20, 0xe6, 0xc3, 0xa9, 0x14}};
 inline constexpr wchar_t kBsaManagerClsidString[] = L"{C4A7B1D2-6E3F-4A58-B9D1-7F20E6C3A914}";
+inline constexpr GUID kClsidBsaDrop = {0xa4d3e8b2, 0x71c5, 0x4f09, {0x8e, 0x36, 0xc9, 0xb1, 0x5d, 0x72, 0x0e, 0x44}};
+inline constexpr wchar_t kBsaDropClsidString[] = L"{A4D3E8B2-71C5-4F09-8E36-C9B15D720E44}";
 // The "Hashes" menu on every file.
 // {5E8D2C17-A3B4-4C69-8F12-3B7A90D4E5C6}
 inline constexpr GUID kClsidHashMenu = {0x5e8d2c17, 0xa3b4, 0x4c69, {0x8f, 0x12, 0x3b, 0x7a, 0x90, 0xd4, 0xe5, 0xc6}};

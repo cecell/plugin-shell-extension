@@ -766,6 +766,7 @@ struct ActionArgs {
     std::vector<std::wstring> paths;
     bool intoOwnFolder = false;
     HMODULE module = nullptr;
+    std::wstring target;  // extraction only; empty means the archive's own folder
 };
 
 DWORD WINAPI ExtractThread(void* param) {
@@ -775,7 +776,10 @@ DWORD WINAPI ExtractThread(void* param) {
         ActivationContext act;
         DpiScope dpi;
         for (const auto& path : a->paths) {
-            const std::wstring destination = a->intoOwnFolder ? FolderOf(path) + L"\\" + StemOf(path) : FolderOf(path);
+            std::wstring base = a->target.empty() ? FolderOf(path) : a->target;
+            // A drive root's path already ends in a backslash.
+            if (!base.empty() && base.back() == L'\\') base.pop_back();
+            const std::wstring destination = a->intoOwnFolder ? base + L"\\" + StemOf(path) : base;
             ExistingFiles existing = ExistingFiles::Replace;
             const uint64_t already = CountExisting(path, destination);
             if (already) {
@@ -1115,8 +1119,10 @@ int RunReportWindow(const std::wstring& title, int status, const std::wstring& t
     return result;
 }
 
-void ExtractBsasAsync(const std::vector<std::wstring>& paths, bool intoOwnFolder) {
-    Start(&ExtractThread, new ActionArgs{paths, intoOwnFolder});
+void ExtractBsasAsync(const std::vector<std::wstring>& paths, bool intoOwnFolder, const std::wstring& target) {
+    auto* args = new ActionArgs{paths, intoOwnFolder};
+    args->target = target;
+    Start(&ExtractThread, args);
 }
 
 void TestBsasAsync(const std::vector<std::wstring>& paths) { Start(&TestThread, new ActionArgs{paths, false}); }

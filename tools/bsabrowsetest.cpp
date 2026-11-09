@@ -423,6 +423,57 @@ int Run(const std::wstring& root) {
 }
 }  // namespace views
 
+// The right-drag handler as Explorer drives it: dropped files, target folder, menu, click.
+int BsaDrop(const wchar_t* dllPath, const wchar_t* source, const wchar_t* target, int command) {
+    using Microsoft::WRL::ComPtr;
+    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    HMODULE dll = LoadLibraryW(dllPath);
+    auto get = dll ? reinterpret_cast<HRESULT(__stdcall*)(REFCLSID, REFIID, void**)>(GetProcAddress(dll, "DllGetClassObject")) : nullptr;
+    if (!get) return 2;
+    ComPtr<IClassFactory> factory;
+    ComPtr<IShellExtInit> init;
+    ComPtr<IShellItem> item;
+    ComPtr<IDataObject> data;
+    PIDLIST_ABSOLUTE pidl = nullptr;
+    if (FAILED(get(pse::kClsidBsaDrop, IID_PPV_ARGS(&factory))) || FAILED(factory->CreateInstance(nullptr, IID_PPV_ARGS(&init)))) return 2;
+    if (FAILED(SHCreateItemFromParsingName(source, nullptr, IID_PPV_ARGS(&item))) || FAILED(item->BindToHandler(nullptr, BHID_DataObject, IID_PPV_ARGS(&data)))) return 2;
+    if (FAILED(SHParseDisplayName(target, nullptr, &pidl, 0, nullptr))) return 2;
+    const HRESULT hr = init->Initialize(pidl, data.Get(), nullptr);
+    CoTaskMemFree(pidl);
+    wprintf(L"initialize=0x%08lx\n", static_cast<unsigned long>(hr));
+    if (FAILED(hr)) return 3;
+    ComPtr<IContextMenu> menu;
+    init.As(&menu);
+    HMENU popup = CreatePopupMenu();
+    wprintf(L"defaultonly adds %d\n", HRESULT_CODE(menu->QueryContextMenu(popup, 0, 100, 200, CMF_DEFAULTONLY)));
+    const HRESULT added = menu->QueryContextMenu(popup, 0, 100, 200, CMF_NORMAL);
+    wchar_t text[260] = {};
+    GetMenuStringW(popup, 0, text, ARRAYSIZE(text), MF_BYPOSITION);
+    HMENU sub = GetSubMenu(popup, 0);
+    wprintf(L"added=%d top=[%ls] items=%d", HRESULT_CODE(added), text, sub ? GetMenuItemCount(sub) : -1);
+    for (int i = 0; sub && i < GetMenuItemCount(sub); ++i) {
+        GetMenuStringW(sub, i, text, ARRAYSIZE(text), MF_BYPOSITION);
+        wprintf(L" [%ls]", text);
+    }
+    wprintf(L"\n");
+    if (command < 0) return 0;
+    CMINVOKECOMMANDINFO info{sizeof(info)};
+    info.lpVerb = MAKEINTRESOURCEA(command);
+    info.nShow = SW_SHOWNORMAL;
+    wprintf(L"invoke=0x%08lx\n", static_cast<unsigned long>(menu->InvokeCommand(&info)));
+    const std::wstring destination = command == 1 ? std::wstring(target) + L"\\" + std::filesystem::path(source).stem().wstring() : target;
+    uint64_t last = 0;
+    int same = 0;
+    for (int i = 0; i < 1200 && same < 15; ++i) {
+        Sleep(100);
+        const uint64_t now = pse::CountExisting(source, destination);
+        same = now && now == last ? same + 1 : 0;
+        last = now;
+    }
+    wprintf(L"extracted=%llu into [%ls]\n", static_cast<unsigned long long>(last), destination.c_str());
+    return 0;
+}
+
 int NameWindowShot(const wchar_t* dllPath, const wchar_t* png) {
     HMODULE dll = LoadLibraryW(dllPath);
     auto run = dll ? reinterpret_cast<int(__stdcall*)(const wchar_t*)>(GetProcAddress(dll, "PseFolderViewNameSnapshot")) : nullptr;
@@ -528,6 +579,11 @@ int Registration() {
     Check(!Exists(classes + L"SystemFileAssociations\\.bsa\\shellex\\ContextMenuHandlers\\PluginShellExtensionBsaManager"), L"uninstall removes the BSA manager menu");
     Check(!Exists(classes + L"CLSID\\" + pse::kBsaManagerClsidString), L"uninstall removes the BSA manager class");
 
+    pse::InstallBsaBrowser(HKEY_CURRENT_USER, classes, ext, L"C:\\x.dll");
+    for (const wchar_t* t : {L"Directory\\shellex", L"Directory\\Background\\shellex", L"Drive\\shellex"}) Check(Read(classes + t + L"\\DragDropHandlers\\PluginShellExtensionBsaManager", nullptr) == pse::kBsaDropClsidString, L"the right-drag menu is registered on its target");
+    Check(Read(classes + L"CLSID\\" + pse::kBsaDropClsidString + L"\\InprocServer32", nullptr) == L"C:\\x.dll", L"the right-drag menu names the DLL");
+    pse::RemoveBsaBrowser(HKEY_CURRENT_USER, classes, ext);
+    Check(!Exists(classes + L"Directory\\shellex\\DragDropHandlers\\PluginShellExtensionBsaManager") && !Exists(classes + L"Drive\\shellex\\DragDropHandlers\\PluginShellExtensionBsaManager") && !Exists(classes + L"CLSID\\" + pse::kBsaDropClsidString), L"uninstall removes the right-drag menu");
     Check(pse::InstallFolderViewsMenu(HKEY_CURRENT_USER, classes, L"C:\\x.dll"), L"the Folder views menu installs");
     Check(Read(classes + L"Directory\\Background\\shellex\\ContextMenuHandlers\\PluginShellExtensionFolderViews", nullptr) == pse::kFolderViewsMenuClsidString, L"the Folder views menu is on folder backgrounds");
     pse::RemoveFolderViewsMenu(HKEY_CURRENT_USER, classes);
@@ -819,6 +875,7 @@ int wmain(int argc, wchar_t** argv) {
     if (argc == 3 && !wcscmp(argv[1], L"--test")) return TestArchive(argv[2]);
     if (argc == 3 && !wcscmp(argv[1], L"--hash")) return Hash(argv[2]);
     if (argc == 6 && !wcscmp(argv[1], L"--hashwindow")) return HashWindow(argv[2], argv[3], argv[4], argv[5]);
+    if (argc == 6 && !wcscmp(argv[1], L"--bsadrop")) return BsaDrop(argv[2], argv[3], argv[4], _wtoi(argv[5]));
     if (argc == 3 && !wcscmp(argv[1], L"--folderviews")) return views::Run(argv[2]);
     if (argc == 4 && !wcscmp(argv[1], L"--namewindow")) return NameWindowShot(argv[2], argv[3]);
     if (argc == 4 && !wcscmp(argv[1], L"--papyrus")) return PapyrusList(argv[2], argv[3]);

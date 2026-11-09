@@ -79,6 +79,7 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
                  clsid == pse::kClsidDdsPropertyHandler);
     if (clsid == pse::kClsidBsaFolder) return pse::CreateBsaFolderFactory(riid, ppv);
     if (clsid == pse::kClsidBsaManager) return pse::CreateBsaManagerFactory(riid, ppv);
+    if (clsid == pse::kClsidBsaDrop) return pse::CreateBsaDropFactory(riid, ppv);
     if (clsid == pse::kClsidHashMenu) return pse::CreateHashMenuFactory(riid, ppv);
     if (clsid == pse::kClsidPapyrusMenu) return pse::CreatePapyrusMenuFactory(riid, ppv);
     if (clsid == pse::kClsidFolderViewsMenu) return pse::CreateFolderViewsMenuFactory(riid, ppv);

@@ -16,7 +16,7 @@
 namespace pse {
 namespace {
 
-enum class MenuKind { Bsa, Hash, Papyrus };
+enum class MenuKind { Bsa, BsaDrop, Hash, Papyrus };
 enum { kExtractHere, kExtractFolder, kTest, kProperties, kBsaCommands };
 enum { kHashes, kHashCommands };
 
@@ -61,9 +61,19 @@ public:
         return static_cast<ULONG>(r);
     }
 
-    IFACEMETHODIMP Initialize(PCIDLIST_ABSOLUTE, IDataObject* data, HKEY) override {
+    IFACEMETHODIMP Initialize(PCIDLIST_ABSOLUTE folder, IDataObject* data, HKEY) override {
         paths_.clear();
         if (!data) return E_INVALIDARG;
+        if (kind_ == MenuKind::BsaDrop) {
+            // For a right-drag, the folder is where the files were dropped.
+            wchar_t target[MAX_PATH * 2] = {};
+            if (!folder || !SHGetPathFromIDListEx(folder, target, ARRAYSIZE(target), GPFIDL_DEFAULT)) return E_FAIL;
+            try {
+                target_ = target;
+            } catch (...) {
+                return E_OUTOFMEMORY;
+            }
+        }
         FORMATETC fe{CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL};
         STGMEDIUM stg{};
         if (FAILED(data->GetData(&fe, &stg))) return E_INVALIDARG;
@@ -119,8 +129,10 @@ public:
             const std::wstring folderLabel = ExtractFolderLabel(paths_);
             AppendMenuW(sub, MF_STRING, first + kExtractHere, L"Extract here");
             AppendMenuW(sub, MF_STRING, first + kExtractFolder, folderLabel.c_str());
-            AppendMenuW(sub, MF_STRING, first + kTest, L"Test BSA");
-            AppendMenuW(sub, MF_STRING, first + kProperties, L"BSA properties");
+            if (kind_ == MenuKind::Bsa) {
+                AppendMenuW(sub, MF_STRING, first + kTest, L"Test BSA");
+                AppendMenuW(sub, MF_STRING, first + kProperties, L"BSA properties");
+            }
         } catch (...) {
             DestroyMenu(sub);
             return E_OUTOFMEMORY;
@@ -145,8 +157,8 @@ public:
                 return S_OK;
             }
             switch (command) {
-                case kExtractHere: ExtractBsasAsync(paths_, false); return S_OK;
-                case kExtractFolder: ExtractBsasAsync(paths_, true); return S_OK;
+                case kExtractHere: ExtractBsasAsync(paths_, false, target_); return S_OK;
+                case kExtractFolder: ExtractBsasAsync(paths_, true, target_); return S_OK;
                 case kTest: TestBsasAsync(paths_); return S_OK;
                 case kProperties: ShowPropertyWindowsAsync(paths_); return S_OK;
             }
@@ -163,6 +175,7 @@ private:
     long refs_ = 1;
     MenuKind kind_;
     bool compile_ = false;
+    std::wstring target_;  // BsaDrop: where the files were dropped
     std::vector<std::wstring> paths_;
 };
 
@@ -218,6 +231,7 @@ HRESULT Make(MenuKind kind, REFIID riid, void** ppv) {
 }  // namespace
 
 HRESULT CreateBsaManagerFactory(REFIID riid, void** ppv) { return Make(MenuKind::Bsa, riid, ppv); }
+HRESULT CreateBsaDropFactory(REFIID riid, void** ppv) { return Make(MenuKind::BsaDrop, riid, ppv); }
 HRESULT CreateHashMenuFactory(REFIID riid, void** ppv) { return Make(MenuKind::Hash, riid, ppv); }
 HRESULT CreatePapyrusMenuFactory(REFIID riid, void** ppv) { return Make(MenuKind::Papyrus, riid, ppv); }
 

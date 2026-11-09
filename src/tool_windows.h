@@ -11,7 +11,8 @@
 
 namespace pse {
 
-void ExtractBsasAsync(const std::vector<std::wstring>& paths, bool intoOwnFolder);
+// `target` is the folder to extract to; empty means each archive's own folder.
+void ExtractBsasAsync(const std::vector<std::wstring>& paths, bool intoOwnFolder, const std::wstring& target = L"");
 void TestBsasAsync(const std::vector<std::wstring>& paths);
 void PapyrusAsync(const std::vector<std::wstring>& paths, bool compile);
 // These ask or tell the user on their own thread, so Explorer isn't held up.

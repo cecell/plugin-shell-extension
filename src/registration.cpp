@@ -119,6 +119,9 @@ void RemoveHashMenu(HKEY root, const std::wstring& classes) {
     RegDeleteKeyW(root, clsid.c_str());
 }
 
+// Where a right-drag can end: on a folder, on a folder's empty space, or on a drive.
+const wchar_t* const kBsaDropTargets[] = {L"Directory\\shellex", L"Directory\\Background\\shellex", L"Drive\\shellex"};
+
 bool InstallFolderViewsMenu(HKEY root, const std::wstring& classes, const std::wstring& dllPath) {
     const std::wstring clsid = classes + L"CLSID\\" + kFolderViewsMenuClsidString;
     LSTATUS st = WriteHandler(root, clsid, L"Plugin Shell Extension folder views menu", dllPath);
@@ -187,6 +190,11 @@ bool InstallBsaBrowser(HKEY root, const std::wstring& classes, const std::wstrin
     const std::wstring manager = classes + L"SystemFileAssociations\\" + ext + L"\\shellex\\ContextMenuHandlers\\PluginShellExtensionBsaManager";
     if (st == ERROR_SUCCESS) st = WriteHandler(root, managerClsid, L"Plugin Shell Extension BSA manager", dllPath);
     if (st == ERROR_SUCCESS) st = SetString(root, manager, nullptr, kBsaManagerClsidString);
+    const std::wstring dropClsid = classes + L"CLSID\\" + kBsaDropClsidString;
+    if (st == ERROR_SUCCESS) st = WriteHandler(root, dropClsid, L"Plugin Shell Extension BSA manager (right-drag)", dllPath);
+    for (const wchar_t* target : kBsaDropTargets) {
+        if (st == ERROR_SUCCESS) st = SetString(root, classes + target + L"\\DragDropHandlers\\PluginShellExtensionBsaManager", nullptr, kBsaDropClsidString);
+    }
     if (st == ERROR_SUCCESS) st = SetString(root, verb, nullptr, L"Browse contents");
     if (st == ERROR_SUCCESS) st = SetExplorerCommand(root, verb + L"\\command");
     if (st == ERROR_SUCCESS) st = SetString(root, verb + L"\\command", L"DelegateExecute", kExecuteFolder);
@@ -225,6 +233,13 @@ void RemoveBsaBrowser(HKEY root, const std::wstring& classes, const std::wstring
     const std::wstring manager = classes + L"SystemFileAssociations\\" + ext + L"\\shellex\\ContextMenuHandlers\\PluginShellExtensionBsaManager";
     RegDeleteTreeW(root, manager.c_str());
     RegDeleteKeyW(root, manager.c_str());
+    for (const wchar_t* target : kBsaDropTargets) {
+        const std::wstring drop = classes + target + L"\\DragDropHandlers\\PluginShellExtensionBsaManager";
+        RegDeleteTreeW(root, drop.c_str());
+        RegDeleteKeyW(root, drop.c_str());
+    }
+    RegDeleteTreeW(root, (classes + L"CLSID\\" + kBsaDropClsidString).c_str());
+    RegDeleteKeyW(root, (classes + L"CLSID\\" + kBsaDropClsidString).c_str());
     RegDeleteTreeW(root, (classes + L"CLSID\\" + kBsaManagerClsidString).c_str());
     RegDeleteKeyW(root, (classes + L"CLSID\\" + kBsaManagerClsidString).c_str());
     RegDeleteTreeW(root, verb.c_str());
