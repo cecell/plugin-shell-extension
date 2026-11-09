@@ -14,6 +14,13 @@
       <displayInfo displayType="String" defaultColumnWidth="8" alignment="Right"/>
     </propertyDescription>
 
+    <propertyDescription name="Cecell.PluginShellExtension.Mipmaps" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="17">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="16"/>
+      <labelInfo label="Mipmaps"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="9" alignment="Right"/>
+    </propertyDescription>
+
     <propertyDescription name="Cecell.PluginShellExtension.RecordCount" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="3">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
       <labelInfo label="#Records"/>

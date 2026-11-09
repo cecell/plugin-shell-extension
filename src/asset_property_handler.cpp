@@ -18,6 +18,8 @@
 #include <vector>
 
 #include "context_menu.h"
+#include "property_handler.h"
+#include "registration.h"
 
 namespace pse {
 namespace {
@@ -42,9 +44,33 @@ bool ReadPrefix(IStream* stream, size_t want, std::vector<uint8_t>* out) {
     return true;
 }
 
+uint32_t FullMipCount(const asset::DdsInfo& d) {
+    uint32_t largest = d.width > d.height ? d.width : d.height;
+    if (d.volume && d.depth > largest) largest = d.depth;
+    uint32_t levels = 1;
+    while (largest > 1) {
+        largest >>= 1;
+        ++levels;
+    }
+    return levels;
+}
+
+// The handler to pass values through to: the one recorded when ours was
+// registered, else Windows' own.
+CLSID WrappedHandlerClsid() {
+    wchar_t text[64] = {};
+    DWORD size = sizeof(text);
+    const std::wstring key = std::wstring(L"SOFTWARE\\Classes\\CLSID\\") + kDdsPropertyHandlerClsidString;
+    CLSID clsid;
+    if (RegGetValueW(HKEY_LOCAL_MACHINE, key.c_str(), kWrappedHandlerValue, RRF_RT_REG_SZ, nullptr, text, &size) == ERROR_SUCCESS &&
+        SUCCEEDED(CLSIDFromString(text, &clsid)) && !IsEqualCLSID(clsid, kClsidDdsPropertyHandler))
+        return clsid;
+    return kClsidWindowsImageHandler;
+}
+
 class AssetHandler final : public IInitializeWithStream, public IPropertyStore, public IPropertyStoreCapabilities {
 public:
-    AssetHandler() { InterlockedIncrement(&g_dllRefs); }
+    explicit AssetHandler(bool dds) : dds_(dds) { InterlockedIncrement(&g_dllRefs); }
 
     IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
         if (!ppv) return E_POINTER;
@@ -70,13 +96,14 @@ public:
 
     // IInitializeWithStream. A file the headers don't make sense of simply has
     // no properties: Explorer shows blanks, as for any file it can't read.
-    IFACEMETHODIMP Initialize(IStream* stream, DWORD) override {
+    IFACEMETHODIMP Initialize(IStream* stream, DWORD mode) override {
         if (!stream) return E_INVALIDARG;
         std::lock_guard<std::mutex> g(lock_);
         if (initialized_) return HRESULT_FROM_WIN32(ERROR_ALREADY_INITIALIZED);
         initialized_ = true;
         try {
-            Load(stream);
+            if (dds_) LoadDds(stream, mode);
+            else Load(stream);
         } catch (const std::bad_alloc&) {
             Clear();
         }
@@ -86,15 +113,20 @@ public:
     IFACEMETHODIMP GetCount(DWORD* count) override {
         if (!count) return E_POINTER;
         std::lock_guard<std::mutex> g(lock_);
-        *count = static_cast<DWORD>(values_.size());
+        DWORD inner = 0;
+        if (inner_ && FAILED(inner_->GetCount(&inner))) inner = 0;
+        *count = static_cast<DWORD>(values_.size()) + inner;
         return S_OK;
     }
     IFACEMETHODIMP GetAt(DWORD index, PROPERTYKEY* key) override {
         if (!key) return E_POINTER;
         std::lock_guard<std::mutex> g(lock_);
-        if (index >= values_.size()) return E_INVALIDARG;
-        *key = values_[index].key;
-        return S_OK;
+        if (index < values_.size()) {
+            *key = values_[index].key;
+            return S_OK;
+        }
+        if (inner_) return inner_->GetAt(index - static_cast<DWORD>(values_.size()), key);
+        return E_INVALIDARG;
     }
     IFACEMETHODIMP GetValue(REFPROPERTYKEY key, PROPVARIANT* pv) override {
         if (!pv) return E_POINTER;
@@ -102,6 +134,7 @@ public:
         std::lock_guard<std::mutex> g(lock_);
         for (const auto& v : values_)
             if (IsEqualPropertyKey(v.key, key)) return PropVariantCopy(pv, &v.value);
+        if (inner_) return inner_->GetValue(key, pv);
         return S_OK;
     }
     IFACEMETHODIMP SetValue(REFPROPERTYKEY, REFPROPVARIANT) override { return STG_E_ACCESSDENIED; }
@@ -116,6 +149,7 @@ private:
 
     ~AssetHandler() {
         Clear();
+        if (inner_) inner_->Release();
         InterlockedDecrement(&g_dllRefs);
     }
 
@@ -149,6 +183,28 @@ private:
         if (a.channels) AddUInt32(PKEY_Audio_ChannelCount, a.channels);
     }
 
+    void LoadDds(IStream* stream, DWORD mode) {
+        std::vector<uint8_t> buf;
+        asset::DdsInfo d;
+        const bool ok = ReadPrefix(stream, asset::kDdsProbeBytes, &buf) && asset::read_dds(buf.data(), buf.size(), d) == asset::Status::Ok;
+        if (ok) {
+            const uint32_t full = FullMipCount(d);
+            const std::wstring text = d.mipmaps <= full ? std::to_wstring(d.mipmaps) + L" of " + std::to_wstring(full) : std::to_wstring(d.mipmaps);
+            Entry e{PROPERTYKEY{kPluginFmtid, kPidMipmaps}, {}};
+            if (SUCCEEDED(InitPropVariantFromString(text.c_str(), &e.value))) values_.push_back(e);
+        }
+        // Windows' handler gets the stream from the start, as it would have directly.
+        LARGE_INTEGER zero{};
+        IInitializeWithStream* init = nullptr;
+        if (SUCCEEDED(stream->Seek(zero, STREAM_SEEK_SET, nullptr)) &&
+            SUCCEEDED(CoCreateInstance(WrappedHandlerClsid(), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&init)))) {
+            if (SUCCEEDED(init->Initialize(stream, mode))) init->QueryInterface(IID_PPV_ARGS(&inner_));
+            init->Release();
+        }
+        // Without it, at least the size is still shown.
+        if (!inner_ && ok) AddImage(d.width, d.height, d.bitsPerPixel);
+    }
+
     void Load(IStream* stream) {
         std::vector<uint8_t> buf;
         if (!ReadPrefix(stream, asset::kAudioProbeBytes, &buf) || buf.empty()) return;
@@ -173,14 +229,16 @@ private:
     }
 
     long refs_ = 1;
+    const bool dds_;
     std::mutex lock_;
     bool initialized_ = false;
     std::vector<Entry> values_;
+    IPropertyStore* inner_ = nullptr;  // .dds: the handler being wrapped
 };
 
 class Factory final : public IClassFactory {
 public:
-    Factory() { InterlockedIncrement(&g_dllRefs); }
+    explicit Factory(bool dds) : dds_(dds) { InterlockedIncrement(&g_dllRefs); }
     IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
         if (!ppv) return E_POINTER;
         if (riid == IID_IUnknown || riid == IID_IClassFactory) {
@@ -201,7 +259,7 @@ public:
         if (!ppv) return E_POINTER;
         *ppv = nullptr;
         if (outer) return CLASS_E_NOAGGREGATION;
-        auto* obj = new (std::nothrow) AssetHandler();
+        auto* obj = new (std::nothrow) AssetHandler(dds_);
         if (!obj) return E_OUTOFMEMORY;
         HRESULT hr = obj->QueryInterface(riid, ppv);
         obj->Release();
@@ -216,16 +274,20 @@ public:
 private:
     ~Factory() { InterlockedDecrement(&g_dllRefs); }
     long refs_ = 1;
+    const bool dds_;
 };
 
-}  // namespace
-
-HRESULT CreateAssetPropertyHandlerFactory(REFIID riid, void** ppv) {
-    auto* factory = new (std::nothrow) Factory();
+HRESULT MakeFactory(bool dds, REFIID riid, void** ppv) {
+    auto* factory = new (std::nothrow) Factory(dds);
     if (!factory) return E_OUTOFMEMORY;
     HRESULT hr = factory->QueryInterface(riid, ppv);
     factory->Release();
     return hr;
 }
+
+}  // namespace
+
+HRESULT CreateAssetPropertyHandlerFactory(REFIID riid, void** ppv) { return MakeFactory(false, riid, ppv); }
+HRESULT CreateDdsPropertyHandlerFactory(REFIID riid, void** ppv) { return MakeFactory(true, riid, ppv); }
 
 }  // namespace pse

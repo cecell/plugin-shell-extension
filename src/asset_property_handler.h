@@ -3,8 +3,11 @@
 // channels. It fills Windows' own properties, so the existing columns, details
 // pane and tooltips show them, using beth-asset-metadata to read the headers.
 //
-// .dds, .xwm and .wav aren't here because other handlers own them (Windows, the
-// XWM property handler), and an extension can only have one.
+// .xwm and .wav aren't here because other handlers own them (the XWM property
+// handler, Windows), and an extension can only have one.
+//
+// .dds is owned by Windows too, but its handler is worth keeping, so the .dds
+// handler here creates it, passes all of its values through and adds Mipmaps.
 #pragma once
 
 #include <windows.h>
@@ -12,5 +15,6 @@
 namespace pse {
 
 HRESULT CreateAssetPropertyHandlerFactory(REFIID riid, void** ppv);
+HRESULT CreateDdsPropertyHandlerFactory(REFIID riid, void** ppv);
 
 }  // namespace pse

@@ -70,10 +70,12 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
     if (!ppv) return E_POINTER;
     *ppv = nullptr;
     pse::DebugLog(L"DllGetClassObject menu=%d props=%d", clsid == pse::kClsidContextMenu,
-                 clsid == pse::kClsidPropertyHandler || clsid == pse::kClsidAssetPropertyHandler);
+                 clsid == pse::kClsidPropertyHandler || clsid == pse::kClsidAssetPropertyHandler ||
+                 clsid == pse::kClsidDdsPropertyHandler);
     if (clsid == pse::kClsidContextMenu) return pse::CreateClassFactory(riid, ppv);
     if (clsid == pse::kClsidPropertyHandler) return pse::CreatePropertyHandlerFactory(riid, ppv);
     if (clsid == pse::kClsidAssetPropertyHandler) return pse::CreateAssetPropertyHandlerFactory(riid, ppv);
+    if (clsid == pse::kClsidDdsPropertyHandler) return pse::CreateDdsPropertyHandlerFactory(riid, ppv);
     if (clsid == pse::kClsidHardlinkMenu) return pse::CreateHardlinkMenuFactory(riid, ppv);
     return CLASS_E_CLASSNOTAVAILABLE;
 }

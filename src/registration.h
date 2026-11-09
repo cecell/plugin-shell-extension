@@ -29,6 +29,22 @@ inline constexpr wchar_t kPropertyHandlerClsidString[] = L"{E0BA20B2-0391-45F5-8
 // {D19B8F6E-787D-498A-8D3D-E90A027561D1}
 inline constexpr GUID kClsidAssetPropertyHandler = {0xd19b8f6e, 0x787d, 0x498a, {0x8d, 0x3d, 0xe9, 0x0a, 0x02, 0x75, 0x61, 0xd1}};
 inline constexpr wchar_t kAssetPropertyHandlerClsidString[] = L"{D19B8F6E-787D-498A-8D3D-E90A027561D1}";
+
+// .dds: passes everything through to the handler that was registered before it,
+// and adds Mipmaps.
+// {7C1F4E52-93A6-4B0D-A4E7-5D2C8F6B1E30}
+inline constexpr GUID kClsidDdsPropertyHandler = {0x7c1f4e52, 0x93a6, 0x4b0d, {0xa4, 0xe7, 0x5d, 0x2c, 0x8f, 0x6b, 0x1e, 0x30}};
+inline constexpr wchar_t kDdsPropertyHandlerClsidString[] = L"{7C1F4E52-93A6-4B0D-A4E7-5D2C8F6B1E30}";
+// Windows' own .dds handler, the one to wrap if none was recorded.
+// {A38B883C-1682-497E-97B0-0A3A9E801682}
+inline constexpr GUID kClsidWindowsImageHandler = {0xa38b883c, 0x1682, 0x497e, {0x97, 0xb0, 0x0a, 0x3a, 0x9e, 0x80, 0x16, 0x82}};
+// Under our CLSID: the handler we replaced, so it can be called and put back.
+inline constexpr wchar_t kWrappedHandlerValue[] = L"WrappedHandler";
+
+// Take over .dds, recording the current handler, and hand it back. `classes` and
+// `handlers` are the registry paths, so a test can use a throwaway location.
+bool InstallDdsHandler(HKEY root, const std::wstring& classes, const std::wstring& handlers, const std::wstring& dllPath);
+void RemoveDdsHandler(HKEY root, const std::wstring& classes, const std::wstring& handlers);
 inline constexpr wchar_t kSchemaFileName[] = L"PluginShellExtension.propdesc";
 
 // Machine-wide only: Windows reads property handlers and schemas from HKLM,

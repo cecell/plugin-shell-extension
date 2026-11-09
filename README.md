@@ -270,7 +270,7 @@ Debugging switches:
 - `src/context_menu.*`: the right-click menu handler
 - `src/hardlink_menu.*`: the optional Hardlink menu on every file (its own COM class, registered only by the setup task)
 - `src/property_handler.*`: the Explorer property handler behind the columns, details pane and tooltip
-- `src/asset_property_handler.*`: fills Windows' own Dimensions, Duration, Bit rate and similar columns for `.tga` and `.fuz`
+- `src/asset_property_handler.*`: fills Windows' own Dimensions, Duration, Bit rate and similar columns for `.tga` and `.fuz`, and adds a Mipmaps column for `.dds` on top of Windows' own handler
 - `src/registration.*`: registry layout for `regsvr32`; the installer writes the same keys
 - `src/dllmain.cpp`: COM exports and the `rundll32` entry points
 - `installer/PluginShellExtension.iss`: the Inno Setup installer

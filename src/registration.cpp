@@ -82,6 +82,45 @@ namespace {
 const wchar_t kPropertyHandlers[] = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\PropertySystem\\PropertyHandlers\\";
 }
 
+bool InstallDdsHandler(HKEY root, const std::wstring& classes, const std::wstring& handlers, const std::wstring& dllPath) {
+    const std::wstring handlerKey = handlers + L".dds";
+    const std::wstring clsidKey = classes + L"CLSID\\" + kDdsPropertyHandlerClsidString;
+    wchar_t current[64] = {};
+    DWORD size = sizeof(current);
+    const bool had = RegGetValueW(root, handlerKey.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, current, &size) == ERROR_SUCCESS && current[0];
+    const bool alreadyOurs = had && _wcsicmp(current, kDdsPropertyHandlerClsidString) == 0;
+    LSTATUS st = SetString(root, clsidKey, nullptr, L"Plugin Shell Extension .dds property handler");
+    if (st == ERROR_SUCCESS) st = SetString(root, clsidKey + L"\\InprocServer32", nullptr, dllPath);
+    if (st == ERROR_SUCCESS) st = SetString(root, clsidKey + L"\\InprocServer32", L"ThreadingModel", L"Both");
+    // On a reinstall the handler is already ours: keep what was recorded the first time.
+    if (st == ERROR_SUCCESS && had && !alreadyOurs) st = SetString(root, clsidKey, kWrappedHandlerValue, current);
+    if (st == ERROR_SUCCESS) st = SetString(root, handlerKey, nullptr, kDdsPropertyHandlerClsidString);
+    if (st != ERROR_SUCCESS && !alreadyOurs) {
+        RegDeleteTreeW(root, clsidKey.c_str());
+        RegDeleteKeyW(root, clsidKey.c_str());
+        return false;
+    }
+    return st == ERROR_SUCCESS;
+}
+
+void RemoveDdsHandler(HKEY root, const std::wstring& classes, const std::wstring& handlers) {
+    const std::wstring handlerKey = handlers + L".dds";
+    const std::wstring clsidKey = classes + L"CLSID\\" + kDdsPropertyHandlerClsidString;
+    wchar_t current[64] = {};
+    DWORD size = sizeof(current);
+    if (RegGetValueW(root, handlerKey.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, current, &size) == ERROR_SUCCESS &&
+        _wcsicmp(current, kDdsPropertyHandlerClsidString) == 0) {
+        wchar_t wrapped[64] = {};
+        size = sizeof(wrapped);
+        if (RegGetValueW(root, clsidKey.c_str(), kWrappedHandlerValue, RRF_RT_REG_SZ, nullptr, wrapped, &size) == ERROR_SUCCESS && wrapped[0])
+            SetString(root, handlerKey, nullptr, wrapped);
+        else
+            RegDeleteKeyW(root, handlerKey.c_str());
+    }
+    RegDeleteTreeW(root, clsidKey.c_str());
+    RegDeleteKeyW(root, clsidKey.c_str());
+}
+
 HRESULT RegisterPropertyHandler(const std::wstring& dllPath, const std::wstring& schemaPath) {
     // The schema first: it fails cleanly (bad XML, not elevated) before any
     // key is written.
@@ -124,11 +163,14 @@ HRESULT RegisterPropertyHandler(const std::wstring& dllPath, const std::wstring&
         UnregisterPropertyHandler(schemaPath);
         return HRESULT_FROM_WIN32(st);
     }
+    // Not fatal: the plugin columns still work if .dds can't be taken over.
+    InstallDdsHandler(HKEY_LOCAL_MACHINE, kClasses, kPropertyHandlers, dllPath);
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
     return S_OK;
 }
 
 HRESULT UnregisterPropertyHandler(const std::wstring& schemaPath) {
+    RemoveDdsHandler(HKEY_LOCAL_MACHINE, kClasses, kPropertyHandlers);
     for (const wchar_t* ext : kExtensions) {
         std::wstring key = std::wstring(kPropertyHandlers) + ext;
         // Only remove the association if it is still ours.

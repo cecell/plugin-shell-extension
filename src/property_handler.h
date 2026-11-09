@@ -29,6 +29,7 @@ enum PluginPid : DWORD {
     kPidItm = 14,           // String  ITM record count, "MissingMaster", empty when 0 (reads the masters)
     kPidDirty = 15,         // String  True / False (#Deleted or #ITM non-zero), "Working", "MissingMaster"
     kPidTipStatus = 16,     // String  "Dirty: True    Is Light: False", one tooltip line (label hidden)
+    kPidMipmaps = 17,       // String  "9 of 12" (.dds, from the asset property handler)
 };
 
 HRESULT CreatePropertyHandlerFactory(REFIID riid, void** ppv);
