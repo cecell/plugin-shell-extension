@@ -59,6 +59,7 @@ add_library(PluginShellExtension SHARED
     src/property_window.cpp
     src/property_handler.cpp
     src/asset_property_handler.cpp
+    src/file_property_handler.cpp
     src/bsa_folder.cpp
     src/tool_menus.cpp
     src/folder_views_menu.cpp
@@ -89,9 +90,10 @@ add_library(psetools STATIC
     src/papyrus_tools.cpp
     src/folder_views.cpp
     src/plugin_tools.cpp
+    src/asset_facts.cpp
     src/disk_cache.cpp)
 target_include_directories(psetools PUBLIC src)
-target_link_libraries(psetools PUBLIC psepattern bsa::reader skqe::papyrus bcrypt advapi32 shell32 ole32 propsys shlwapi)
+target_link_libraries(psetools PUBLIC psepattern bsa::reader asset::metadata skqe::papyrus bcrypt advapi32 shell32 ole32 propsys shlwapi)
 target_link_libraries(psetools PRIVATE nlohmann_json::nlohmann_json)
 
 add_executable(itmcheck tools/itmcheck.cpp)

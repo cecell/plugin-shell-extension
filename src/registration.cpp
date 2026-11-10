@@ -327,6 +327,23 @@ HRESULT RegisterPropertyHandler(const std::wstring& dllPath, const std::wstring&
                            current[0] && _wcsicmp(current, kAssetPropertyHandlerClsidString) != 0;
         if (st == ERROR_SUCCESS && !taken) st = SetString(HKEY_LOCAL_MACHINE, key, nullptr, kAssetPropertyHandlerClsidString);
     }
+    // These need the file's path, so like the plugin handler they run in the caller's process.
+    const std::wstring fileKey = std::wstring(kClasses) + L"CLSID\\" + kFilePropertyHandlerClsidString;
+    if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, fileKey, nullptr, L"WHAM file property handler");
+    if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, fileKey + L"\\InprocServer32", nullptr, dllPath);
+    if (st == ERROR_SUCCESS) st = SetString(HKEY_LOCAL_MACHINE, fileKey + L"\\InprocServer32", L"ThreadingModel", L"Both");
+    if (st == ERROR_SUCCESS) {
+        DWORD one = 1;
+        st = RegSetKeyValueW(HKEY_LOCAL_MACHINE, fileKey.c_str(), L"DisableProcessIsolation", REG_DWORD, &one, sizeof(one));
+    }
+    for (const wchar_t* ext : kFileHandlerExtensions) {
+        wchar_t current[64] = {};
+        DWORD size = sizeof(current);
+        const std::wstring key = std::wstring(kPropertyHandlers) + ext;
+        const bool taken = RegGetValueW(HKEY_LOCAL_MACHINE, key.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, current, &size) == ERROR_SUCCESS &&
+                           current[0] && _wcsicmp(current, kFilePropertyHandlerClsidString) != 0;
+        if (st == ERROR_SUCCESS && !taken) st = SetString(HKEY_LOCAL_MACHINE, key, nullptr, kFilePropertyHandlerClsidString);
+    }
     if (st != ERROR_SUCCESS) {
         UnregisterPropertyHandler(schemaPath);
         return HRESULT_FROM_WIN32(st);
@@ -357,6 +374,16 @@ HRESULT UnregisterPropertyHandler(const std::wstring& schemaPath) {
             _wcsicmp(value, kAssetPropertyHandlerClsidString) == 0)
             RegDeleteKeyW(HKEY_LOCAL_MACHINE, key.c_str());
     }
+    for (const wchar_t* ext : kFileHandlerExtensions) {
+        std::wstring key = std::wstring(kPropertyHandlers) + ext;
+        wchar_t value[64] = {};
+        DWORD size = sizeof(value);
+        if (RegGetValueW(HKEY_LOCAL_MACHINE, key.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, value, &size) == ERROR_SUCCESS &&
+            _wcsicmp(value, kFilePropertyHandlerClsidString) == 0)
+            RegDeleteKeyW(HKEY_LOCAL_MACHINE, key.c_str());
+    }
+    RegDeleteTreeW(HKEY_LOCAL_MACHINE, (std::wstring(kClasses) + L"CLSID\\" + kFilePropertyHandlerClsidString).c_str());
+    RegDeleteKeyW(HKEY_LOCAL_MACHINE, (std::wstring(kClasses) + L"CLSID\\" + kFilePropertyHandlerClsidString).c_str());
     RegDeleteTreeW(HKEY_LOCAL_MACHINE, (std::wstring(kClasses) + L"CLSID\\" + kAssetPropertyHandlerClsidString).c_str());
     RegDeleteKeyW(HKEY_LOCAL_MACHINE, (std::wstring(kClasses) + L"CLSID\\" + kAssetPropertyHandlerClsidString).c_str());
     RegDeleteTreeW(HKEY_LOCAL_MACHINE, (std::wstring(kClasses) + L"CLSID\\" + kPropertyHandlerClsidString).c_str());

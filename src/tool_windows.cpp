@@ -1176,9 +1176,11 @@ void UpgradeHeadersAsync(const std::vector<std::wstring>& paths) {
     StartUserJob([paths] {
         std::wstring report;
         size_t upgraded = 0, unchanged = 0, failed = 0;
+        bool formTooOld = false;
         for (const std::wstring& path : paths) {
             const HeaderUpgradeResult r = UpgradePluginHeader(path);
             report += r.text + L"\r\n";
+            formTooOld = formTooOld || r.formTooOld;
             if (r.status == 0) {
                 ++upgraded;
                 SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, path.c_str(), nullptr);
@@ -1190,7 +1192,7 @@ void UpgradeHeadersAsync(const std::vector<std::wstring>& paths) {
         }
         // A short list reads better in a message than in the scrolling report.
         if (paths.size() <= 8) {
-            MessageBoxW(nullptr, report.c_str(), L"Upgrade header", MB_OK | MB_SETFOREGROUND | (failed ? MB_ICONWARNING : MB_ICONINFORMATION));
+            MessageBoxW(nullptr, report.c_str(), L"Upgrade header", MB_OK | MB_SETFOREGROUND | (failed || formTooOld ? MB_ICONWARNING : MB_ICONINFORMATION));
             return;
         }
         const std::wstring summary = std::to_wstring(upgraded) + L" upgraded, " + std::to_wstring(unchanged) + L" left unchanged, " + std::to_wstring(failed) + L" failed.\r\n\r\n";

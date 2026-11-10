@@ -10,7 +10,8 @@ namespace pse {
 namespace {
 
 // The record header is 24 bytes, then "HEDR", a 2-byte size (12), then the version.
-constexpr DWORD kHedrSignature = 24, kHedrSize = 28, kVersionOffset = 30, kPrefixBytes = 34;
+constexpr DWORD kFormVersionOffset = 20, kHedrSignature = 24, kHedrSize = 28, kVersionOffset = 30, kPrefixBytes = 34;
+constexpr uint16_t kSeFormVersion = 44;
 constexpr uint32_t kVersion170 = 0x3FD9999A, kVersion171 = 0x3FDAE148;  // the floats 1.70 and 1.71
 
 std::wstring NameOf(const std::wstring& path) {
@@ -64,6 +65,19 @@ HeaderUpgradeResult UpgradePluginHeader(const std::wstring& path) {
         (memcpy(&hedrSize, prefix + kHedrSize, sizeof(hedrSize)), hedrSize != 12)) {
         result.status = 2;
         result.text = name + L": this isn't a Skyrim plugin. Nothing was changed.";
+        return result;
+    }
+    uint16_t formVersion = 0;
+    memcpy(&formVersion, prefix + kFormVersionOffset, sizeof(formVersion));
+    if (formVersion < kSeFormVersion) {
+        result.status = 2;
+        result.formTooOld = true;
+        result.text = name + L": it's form version " + std::to_wstring(formVersion) + L". Anything below form version 44 can't be upgraded to 1.71, which is AE. Nothing was changed.";
+        return result;
+    }
+    if (formVersion != kSeFormVersion) {
+        result.status = 2;
+        result.text = name + L": it's form version " + std::to_wstring(formVersion) + L", not a Skyrim SE plugin. Nothing was changed.";
         return result;
     }
     uint32_t version = 0;

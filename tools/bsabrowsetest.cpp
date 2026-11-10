@@ -27,6 +27,8 @@
 
 #include "bsa_tools.h"
 #include "papyrus_tools.h"
+#include "asset_facts.h"
+#include <propvarutil.h>
 #include "plugin_tools.h"
 #include "folder_views.h"
 #include <exdisp.h>
@@ -411,7 +413,7 @@ int Run(const std::wstring& root) {
     // The built-in presets, on a real window.
     {
         auto presets = pse::LoadFolderViews();
-        Expect(presets.size() == 6, L"six presets ship");
+        Expect(presets.size() == 7, L"seven presets ship");
         auto win = Open(root);
         Expect(win != nullptr, L"a window opened for the presets");
         if (win) {
@@ -424,8 +426,10 @@ int Run(const std::wstring& root) {
                 ViewOf(win.Get(), pb, pv);
                 pse::FolderViewState r;
                 pse::CaptureFolderView(pv.Get(), r);
-                wprintf(L"preset %ls hr=0x%08lx wanted %zu columns, got %zu\n", p.name.c_str(), static_cast<unsigned long>(phr), p.columns.size(), r.columns.size());
-                Expect(p.shipped && r.mode == FVM_DETAILS && r.groupKey.empty() && r.columns.size() == p.columns.size() && r.sort.size() == 1 && r.sort[0].direction == 1, L"details, not grouped, every column, sorted by name");
+                size_t installed = 0;  // a new column exists only after the schema is registered
+                for (const auto& c : p.columns) { PROPERTYKEY k; if (SUCCEEDED(PSGetPropertyKeyFromName(c.key.c_str(), &k))) ++installed; }
+                wprintf(L"preset %ls hr=0x%08lx listed %zu, installed %zu, got %zu\n", p.name.c_str(), static_cast<unsigned long>(phr), p.columns.size(), installed, r.columns.size());
+                Expect(p.shipped && r.mode == FVM_DETAILS && r.groupKey.empty() && r.columns.size() == installed && r.sort.size() == 1 && r.sort[0].direction == 1, L"details, not grouped, every column, sorted by name");
             }
             pse::FolderViewState custom = presets[0];
             custom.name = L"plugins";
@@ -436,12 +440,12 @@ int Run(const std::wstring& root) {
             size_t matches = 0, cols = 0;
             bool shippedStill = false;
             for (auto& v : after) if (!_wcsicmp(v.name.c_str(), L"plugins")) { ++matches; cols = v.columns.size(); shippedStill = v.shipped; }
-            Expect(after.size() == 6 && matches == 1 && cols == 2 && !shippedStill, L"that replaces the preset, with no duplicate");
+            Expect(after.size() == 7 && matches == 1 && cols == 2 && !shippedStill, L"that replaces the preset, with no duplicate");
             Expect(pse::RemoveFolderView(L"plugins"), L"it can be removed");
             after = pse::LoadFolderViews();
             matches = 0; cols = 0; shippedStill = false;
             for (auto& v : after) if (!_wcsicmp(v.name.c_str(), L"plugins")) { ++matches; cols = v.columns.size(); shippedStill = v.shipped; }
-            Expect(after.size() == 6 && matches == 1 && cols == 17 && shippedStill, L"removing it brings the preset back");
+            Expect(after.size() == 7 && matches == 1 && cols == 17 && shippedStill, L"removing it brings the preset back");
             win->Quit();
             Pump(800);
         }
@@ -569,6 +573,68 @@ int PluginMenu(const wchar_t* dllPath, const wchar_t* plugin) {
     }
     wprintf(L"no message\n");
     return 1;
+}
+
+// One line per file: "path<TAB>pid=value|..." for the quick and the full facts.
+void PrintFacts(const std::vector<pse::AssetFact>& facts) {
+    for (const auto& f : facts) {
+        if (f.type == pse::AssetFact::Type::Text) wprintf(L"%lu=%ls|", f.pid, f.text.c_str());
+        else wprintf(L"%lu=%llu|", f.pid, static_cast<unsigned long long>(f.number));
+    }
+}
+int AssetFacts(const wchar_t* listPath) {
+    std::wifstream list{std::filesystem::path(listPath)};
+    std::wstring line;
+    _setmode(_fileno(stdout), _O_U8TEXT);
+    while (std::getline(list, line)) {
+        if (line.empty()) continue;
+        wprintf(L"%ls\tQ:", line.c_str());
+        PrintFacts(pse::ReadQuickAssetFacts(line));
+        wprintf(L"\tF:");
+        const auto full = pse::ReadFullAssetFacts(line);
+        PrintFacts(full);
+        std::vector<pse::AssetFact> back;
+        wprintf(L"\tRT:%d\n", pse::DecodeAssetFacts(pse::EncodeAssetFacts(full), &back) && back.size() == full.size());
+    }
+    return 0;
+}
+
+// The real COM handler, as Explorer would use it: every property it reports.
+int FileColumns(const wchar_t* dllPath, const wchar_t* file) {
+    using Microsoft::WRL::ComPtr;
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    HMODULE dll = LoadLibraryW(dllPath);
+    auto get = dll ? reinterpret_cast<HRESULT(__stdcall*)(REFCLSID, REFIID, void**)>(GetProcAddress(dll, "DllGetClassObject")) : nullptr;
+    ComPtr<IClassFactory> factory;
+    ComPtr<IInitializeWithFile> init;
+    if (!get || FAILED(get(pse::kClsidFilePropertyHandler, IID_PPV_ARGS(&factory))) || FAILED(factory->CreateInstance(nullptr, IID_PPV_ARGS(&init)))) return 2;
+    if (FAILED(init->Initialize(file, STGM_READ))) return 3;
+    ComPtr<IPropertyStore> store;
+    init.As(&store);
+    DWORD count = 0;
+    store->GetCount(&count);
+    for (int pass = 0; pass < 2; ++pass) {
+        wprintf(L"pass %d, %lu properties\n", pass, count);
+        for (DWORD i = 0; i < count; ++i) {
+            PROPERTYKEY key;
+            store->GetAt(i, &key);
+            PROPVARIANT value;
+            PropVariantInit(&value);
+            store->GetValue(key, &value);
+            PWSTR text = nullptr;
+            PropVariantToStringAlloc(value, &text);
+            wprintf(L"  pid %lu vt=%d [%ls]\n", key.pid, value.vt, text ? text : L"");
+            CoTaskMemFree(text);
+            PropVariantClear(&value);
+        }
+        if (GetEnvironmentVariableW(L"PSE_ASYNC_TEST", nullptr, 0) == 0) break;
+        Sleep(2500);
+        init.Reset();
+        store.Reset();
+        if (FAILED(factory->CreateInstance(nullptr, IID_PPV_ARGS(&init))) || FAILED(init->Initialize(file, STGM_READ))) return 3;
+        init.As(&store);
+    }
+    return 0;
 }
 
 int NameWindowShot(const wchar_t* dllPath, const wchar_t* png) {
@@ -972,6 +1038,8 @@ int wmain(int argc, wchar_t** argv) {
     if (argc == 3 && !wcscmp(argv[1], L"--test")) return TestArchive(argv[2]);
     if (argc == 3 && !wcscmp(argv[1], L"--hash")) return Hash(argv[2]);
     if (argc == 6 && !wcscmp(argv[1], L"--hashwindow")) return HashWindow(argv[2], argv[3], argv[4], argv[5]);
+    if (argc == 3 && !wcscmp(argv[1], L"--assetfacts")) return AssetFacts(argv[2]);
+    if (argc == 4 && !wcscmp(argv[1], L"--filecolumns")) return FileColumns(argv[2], argv[3]);
     if (argc == 3 && !wcscmp(argv[1], L"--upgrade")) return HeaderUpgrade(argv[2]);
     if (argc == 4 && !wcscmp(argv[1], L"--pluginmenu")) return PluginMenu(argv[2], argv[3]);
     if (argc == 6 && !wcscmp(argv[1], L"--bsadrop")) return BsaDrop(argv[2], argv[3], argv[4], _wtoi(argv[5]));

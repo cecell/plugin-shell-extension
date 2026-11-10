@@ -84,6 +84,27 @@ tooltip** (on by default) makes these fields available in Explorer:
 | Dirty | **True** when #Deleted or #ITM is not zero, otherwise **False**; **Working** until #ITM is known (unless #Deleted already decides it), **MissingMaster** when it cannot be known |
 | ESLable | Already, True, Save in CK, False or Corrupted, as above |
 
+### Other file types
+
+Columns marked * read the whole file, so they fill in shortly after the folder opens: text says **Working** until then and numbers stay blank. Results are saved, so that only happens once per file.
+
+| File type | Columns |
+|---|---|
+| Meshes (`.nif`) | Game, NIF Ver, Blocks, Strips, Shapes*, Vertices*, Triangles*, Textures* |
+| Compiled scripts (`.pex`) | Script*, Compiled*, Extends*, Functions*, Properties*, States*, Script Flags* |
+| Script sources (`.psc`) | Extends*, Functions*, Properties*, Compiled? |
+| Archives (`.bsa`) | BSA Game, BSA Ver, Files, Folders, Contains, Compression*, Unpacked*, Has Plugin |
+| Animations (`.hkx`) | Content*, Anim Game*, Length*, Frames*, Tracks* |
+| Lip sync (`.lip`) | Lip Ver, Units |
+| `.dds` textures, in addition | Format, sRGB, Alpha, Cubemap |
+| `.fuz` voice files, in addition | Has Lip |
+
+**Folder views**, on a folder's background menu, has a preset for each of these.
+
+### Upgrade header
+
+**Skyrim SE plugins** > **Upgrade header** changes a plugin's header from 1.70 to 1.71, which is only the four bytes of the version number. It needs a plugin of form version 44: anything below that can't be upgraded to 1.71, which is AE.
+
 Turn the columns on in Details view: right-click a column header > **More...**.
 
 ![Explorer columns](docs/explorer-columns.png)

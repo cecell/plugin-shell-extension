@@ -149,5 +149,250 @@
       <displayInfo displayType="String"/>
     </propertyDescription>
 
+    <propertyDescription name="Cecell.PluginShellExtension.NifGame" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="22">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Game"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="9"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.NifVersion" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="23">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="NIF Ver"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="7" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.NifBlocks" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="24">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Blocks"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="7" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.NifStrips" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="25">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Strips"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="6"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.NifShapes" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="26">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Shapes"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="7" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.NifVertices" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="27">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Vertices"/>
+      <typeInfo type="UInt64" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="9" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.NifTriangles" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="28">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Triangles"/>
+      <typeInfo type="UInt64" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="9" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.NifTextures" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="29">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="4096"/>
+      <labelInfo label="Textures"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="50"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.ScriptName" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="30">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Script"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="24"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.ScriptCompiled" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="31">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Compiled"/>
+      <typeInfo type="DateTime" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="DateTime" defaultColumnWidth="16"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.ScriptExtends" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="32">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Extends"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="22"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.ScriptFunctions" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="33">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Functions"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.ScriptProperties" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="34">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Properties"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.ScriptStates" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="35">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="States"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="7" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.ScriptFlags" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="36">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Script Flags"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="14"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.ScriptCompiledState" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="37">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Compiled?"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="10"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.BsaGame" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="38">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="BSA Game"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="28"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.BsaVersion" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="39">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="BSA Ver"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="7" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.BsaFiles" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="40">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Files"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.BsaFolders" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="41">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Folders"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.BsaContains" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="42">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Contains"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="28"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.BsaCompression" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="43">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Compression"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="11"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.BsaUnpacked" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="44">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Unpacked"/>
+      <typeInfo type="UInt64" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="11" alignment="Right"><numberFormat formatAs="FileSize"/></displayInfo>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.BsaHasPlugin" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="45">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Has Plugin"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="8"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.TexFormat" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="46">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Format"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="10"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.TexSrgb" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="47">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="sRGB"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="6"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.TexAlpha" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="48">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Alpha"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="6"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.TexCubemap" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="49">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Cubemap"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="8"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.HasLip" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="50">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Has Lip"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="7"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.LipVersion" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="51">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Lip Ver"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="7" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.LipUnits" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="52">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Units"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="7" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.HkxContent" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="53">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Content"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="12"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.HkxGame" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="54">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="128"/>
+      <labelInfo label="Anim Game"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="12"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.HkxFrames" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="55">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Frames"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="7" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.HkxTracks" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="56">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Tracks"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="7" alignment="Right"/>
+    </propertyDescription>
+
   </propertyDescriptionList>
 </schema>

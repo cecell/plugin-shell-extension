@@ -16,6 +16,9 @@ inline constexpr wchar_t kHandlerDescription[] = L"WHAM context menu";
 inline constexpr const wchar_t* kExtensions[] = {L".esp", L".esm", L".esl"};
 // The asset property handler. Not .dds, .xwm or .wav: other handlers own those.
 inline constexpr const wchar_t* kAssetExtensions[] = {L".tga", L".fuz"};
+inline constexpr const wchar_t* kFileHandlerExtensions[] = {L".nif", L".pex", L".psc", L".bsa", L".hkx", L".lip"};
+inline constexpr GUID kClsidFilePropertyHandler = {0xe3a17c58, 0x4b92, 0x4d06, {0xa6, 0xf1, 0x2c, 0x98, 0xb4, 0x7d, 0x10, 0xe5}};
+inline constexpr wchar_t kFilePropertyHandlerClsidString[] = L"{E3A17C58-4B92-4D06-A6F1-2C98B47D10E5}";
 
 // root is HKEY_CURRENT_USER (per-user) or HKEY_LOCAL_MACHINE (all users).
 HRESULT RegisterHandler(HKEY root, const std::wstring& dllPath);

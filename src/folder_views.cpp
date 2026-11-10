@@ -49,13 +49,14 @@ const std::vector<PresetDefinition>& PresetDefinitions() {
           PSE_COLUMN L"RecordCount", PSE_COLUMN L"MasterCount", PSE_COLUMN L"Masters", PSE_COLUMN L"DeletedCount", PSE_COLUMN L"DeletedNavmeshes", PSE_COLUMN L"HeaderVersion", PSE_COLUMN L"FormVersion"}},
         {L"Textures",
          {L"System.Image.Dimensions", L"System.Image.HorizontalSize", L"System.Image.VerticalSize", L"System.Image.BitDepth", PSE_COLUMN L"Mipmaps", L"System.Image.HorizontalResolution",
-          L"System.Image.VerticalResolution"}},
-        {L"Meshes", {}},
+          L"System.Image.VerticalResolution", PSE_COLUMN L"TexFormat", PSE_COLUMN L"TexSrgb", PSE_COLUMN L"TexAlpha", PSE_COLUMN L"TexCubemap"}},
+        {L"Meshes", {PSE_COLUMN L"NifGame", PSE_COLUMN L"NifVersion", PSE_COLUMN L"NifBlocks", PSE_COLUMN L"NifStrips", PSE_COLUMN L"NifShapes", PSE_COLUMN L"NifVertices", PSE_COLUMN L"NifTriangles", PSE_COLUMN L"NifTextures"}},
         {L"Audio",
          {L"System.Media.Duration", L"System.Audio.EncodingBitrate", PSE_COLUMN L"SampleRate", PSE_COLUMN L"Channels", L"System.Audio.SampleRate", L"System.Audio.ChannelCount", PSE_COLUMN L"AudioFormat",
-          PSE_COLUMN L"FuzVersion"}},
-        {L"Scripts", {}},
-        {L"Archives", {}},
+          PSE_COLUMN L"FuzVersion", PSE_COLUMN L"HasLip", PSE_COLUMN L"LipVersion", PSE_COLUMN L"LipUnits"}},
+        {L"Scripts", {PSE_COLUMN L"ScriptName", PSE_COLUMN L"ScriptCompiled", PSE_COLUMN L"ScriptExtends", PSE_COLUMN L"ScriptFunctions", PSE_COLUMN L"ScriptProperties", PSE_COLUMN L"ScriptStates", PSE_COLUMN L"ScriptFlags", PSE_COLUMN L"ScriptCompiledState"}},
+        {L"Archives", {PSE_COLUMN L"BsaGame", PSE_COLUMN L"BsaVersion", PSE_COLUMN L"BsaFiles", PSE_COLUMN L"BsaFolders", PSE_COLUMN L"BsaContains", PSE_COLUMN L"BsaCompression", PSE_COLUMN L"BsaUnpacked", PSE_COLUMN L"BsaHasPlugin"}},
+        {L"Animations", {PSE_COLUMN L"HkxContent", PSE_COLUMN L"HkxGame", L"System.Media.Duration", PSE_COLUMN L"HkxFrames", PSE_COLUMN L"HkxTracks"}},
     };
     return presets;
 }

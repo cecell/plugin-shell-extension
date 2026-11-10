@@ -167,6 +167,11 @@ private:
         if (SUCCEEDED(InitPropVariantFromUInt64(value, &e.value))) values_.push_back(e);
     }
 
+    void AddText(DWORD pid, const std::wstring& text) {
+        Entry e{PROPERTYKEY{kPluginFmtid, pid}, {}};
+        if (SUCCEEDED(InitPropVariantFromString(text.c_str(), &e.value))) values_.push_back(e);
+    }
+
     void AddImage(uint32_t width, uint32_t height, uint32_t bitDepth) {
         AddUInt32(PKEY_Image_HorizontalSize, width);
         AddUInt32(PKEY_Image_VerticalSize, height);
@@ -187,6 +192,7 @@ private:
         if (a.sampleRate) AddUInt32(PROPERTYKEY{kPluginFmtid, kPidSampleRate}, a.sampleRate);
         if (a.channels) AddUInt32(PROPERTYKEY{kPluginFmtid, kPidChannels}, a.channels);
         AddUInt32(PROPERTYKEY{kPluginFmtid, kPidFuzVersion}, a.fuzVersion);
+        AddText(kPidHasLip, a.hasLip ? L"Yes" : L"No");
         const wchar_t* format = a.payload == asset::AudioContainer::Xwm ? L"xWMA" : a.payload == asset::AudioContainer::Wav ? L"WAV" : nullptr;
         if (format) {
             Entry e{PROPERTYKEY{kPluginFmtid, kPidAudioFormat}, {}};
@@ -201,8 +207,12 @@ private:
         if (ok) {
             const uint32_t full = FullMipCount(d);
             const std::wstring text = d.mipmaps <= full ? std::to_wstring(d.mipmaps) + L" of " + std::to_wstring(full) : std::to_wstring(d.mipmaps);
-            Entry e{PROPERTYKEY{kPluginFmtid, kPidMipmaps}, {}};
-            if (SUCCEEDED(InitPropVariantFromString(text.c_str(), &e.value))) values_.push_back(e);
+            AddText(kPidMipmaps, text);
+            const std::string format = d.format == asset::DdsFormat::Other || d.format == asset::DdsFormat::Unknown ? std::string() : asset::to_string(d.format);
+            if (!format.empty()) AddText(kPidTexFormat, std::wstring(format.begin(), format.end()));
+            AddText(kPidTexSrgb, d.srgb ? L"Yes" : L"No");
+            AddText(kPidTexAlpha, d.hasAlpha ? L"Yes" : L"No");
+            AddText(kPidTexCubemap, d.cubemap ? L"Yes" : L"No");
         }
         // Windows' handler gets the stream from the start, as it would have directly.
         LARGE_INTEGER zero{};

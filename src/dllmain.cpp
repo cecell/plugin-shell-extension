@@ -13,6 +13,7 @@
 #include "bsa_folder.h"
 #include "tool_menus.h"
 #include "folder_views_menu.h"
+#include "file_property_handler.h"
 #include "tool_windows.h"
 #include "property_handler.h"
 #include "property_window.h"
@@ -86,6 +87,7 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
     if (clsid == pse::kClsidContextMenu) return pse::CreateClassFactory(riid, ppv);
     if (clsid == pse::kClsidPropertyHandler) return pse::CreatePropertyHandlerFactory(riid, ppv);
     if (clsid == pse::kClsidAssetPropertyHandler) return pse::CreateAssetPropertyHandlerFactory(riid, ppv);
+    if (clsid == pse::kClsidFilePropertyHandler) return pse::CreateFilePropertyHandlerFactory(riid, ppv);
     if (clsid == pse::kClsidDdsPropertyHandler) return pse::CreateDdsPropertyHandlerFactory(riid, ppv);
     if (clsid == pse::kClsidHardlinkMenu) return pse::CreateHardlinkMenuFactory(riid, ppv);
     return CLASS_E_CLASSNOTAVAILABLE;
