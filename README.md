@@ -94,10 +94,10 @@ Columns marked * read the whole file, so they fill in shortly after the folder o
 | Compiled scripts (`.pex`) | Script*, Compiled*, Extends*, Functions*, Properties*, States*, Script Flags* |
 | Script sources (`.psc`) | Extends*, Functions*, Properties*, Compiled? |
 | Archives (`.bsa`) | BSA Game, BSA Ver, Files, Folders, Contains, Compression*, Unpacked*, Has Plugin |
-| Animations (`.hkx`) | Content*, Anim Game*, Length*, Frames*, Tracks* |
+| Animations (`.hkx`) | Content*, Anim Game*, Length*, Frames*, Tracks*, Annotations*, Events*, Variables*, Clips*, Anim List* |
 | Lip sync (`.lip`) | Lip Ver, Units |
 | `.dds` textures, in addition | Format, sRGB, Alpha, Cubemap |
-| `.fuz` voice files, in addition | Has Lip |
+| `.fuz` voice files, in addition | Has Lip, Lip Ver, Units (of the lip data inside) |
 
 **Folder views**, on a folder's background menu, has a preset for each of these.
 

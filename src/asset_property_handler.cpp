@@ -181,7 +181,7 @@ private:
         if (bitDepth) AddUInt32(PKEY_Image_BitDepth, bitDepth);
     }
 
-    void AddAudio(const asset::AudioInfo& a) {
+    void AddAudio(const asset::AudioInfo& a, const std::vector<uint8_t>& bytes) {
         if (a.durationSeconds > 0) AddUInt64(PKEY_Media_Duration, static_cast<uint64_t>(a.durationSeconds * 10000000.0 + 0.5));
         if (a.bitRate) AddUInt32(PKEY_Audio_EncodingBitrate, a.bitRate);
         if (a.sampleRate) AddUInt32(PKEY_Audio_SampleRate, a.sampleRate);
@@ -193,6 +193,13 @@ private:
         if (a.channels) AddUInt32(PROPERTYKEY{kPluginFmtid, kPidChannels}, a.channels);
         AddUInt32(PROPERTYKEY{kPluginFmtid, kPidFuzVersion}, a.fuzVersion);
         AddText(kPidHasLip, a.hasLip ? L"Yes" : L"No");
+        // The lip data sits right after the 12-byte FUZE header.
+        asset::LipInfo lip;
+        if (a.hasLip && a.lipBytes >= 16 && 12 + uint64_t{a.lipBytes} <= bytes.size() &&
+            asset::read_lip(bytes.data() + 12, a.lipBytes, lip) == asset::Status::Ok) {
+            AddUInt32(PROPERTYKEY{kPluginFmtid, kPidLipVersion}, lip.version);
+            AddUInt32(PROPERTYKEY{kPluginFmtid, kPidLipUnits}, lip.units);
+        }
         const wchar_t* format = a.payload == asset::AudioContainer::Xwm ? L"xWMA" : a.payload == asset::AudioContainer::Wav ? L"WAV" : nullptr;
         if (format) {
             Entry e{PROPERTYKEY{kPluginFmtid, kPidAudioFormat}, {}};
@@ -242,7 +249,7 @@ private:
                 a = asset::AudioInfo();
                 s = asset::read_audio(buf.data(), buf.size(), a);
             }
-            if (s == asset::Status::Ok) AddAudio(a);
+            if (s == asset::Status::Ok) AddAudio(a, buf);
         } else if (kind == asset::Kind::Unknown) {
             asset::TgaInfo t;  // TGA has no magic, so it's whatever detect() couldn't name
             if (asset::read_tga(buf.data(), buf.size(), t) == asset::Status::Ok) AddImage(t.width, t.height, t.bitsPerPixel);

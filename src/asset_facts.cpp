@@ -274,7 +274,14 @@ void FullHkx(const std::wstring& path, std::vector<AssetFact>& facts) {
         facts.push_back(Big(kFactDuration, static_cast<uint64_t>(h.duration * 10000000.0f + 0.5f)));
         if (h.frameCount >= 0) facts.push_back(Number(kPidHkxFrames, static_cast<uint64_t>(h.frameCount)));
         facts.push_back(Number(kPidHkxTracks, static_cast<uint64_t>(h.transformTracks)));
+        facts.push_back(Number(kPidHkxAnnotations, h.annotations.size()));
     }
+    if (!h.events.empty() || !h.variables.empty()) {
+        facts.push_back(Number(kPidHkxEvents, h.events.size()));
+        facts.push_back(Number(kPidHkxVariables, h.variables.size()));
+    }
+    if (!h.clipAnimations.empty()) facts.push_back(Number(kPidHkxClips, h.clipAnimations.size()));
+    if (!h.animationNames.empty()) facts.push_back(Number(kPidHkxAnimations, h.animationNames.size()));
 }
 
 void ReadFull(const std::wstring& path, std::vector<AssetFact>& facts) {
@@ -326,7 +333,7 @@ std::vector<AssetFact> AssetFactColumns(const std::wstring& path) {
     if (ext == L".pex") return {text(kPidScriptName), AssetFact{kPidScriptCompiled, Type::Date, L"", 0}, text(kPidScriptExtends), number(kPidScriptFunctions), number(kPidScriptProperties), number(kPidScriptStates), text(kPidScriptFlags)};
     if (ext == L".psc") return {text(kPidScriptExtends), number(kPidScriptFunctions), number(kPidScriptProperties)};
     if (ext == L".bsa") return {text(kPidBsaCompression), Big(kPidBsaUnpacked, 0)};
-    if (ext == L".hkx") return {text(kPidHkxContent), text(kPidHkxGame), Big(kFactDuration, 0), number(kPidHkxFrames), number(kPidHkxTracks)};
+    if (ext == L".hkx") return {text(kPidHkxContent), text(kPidHkxGame), Big(kFactDuration, 0), number(kPidHkxFrames), number(kPidHkxTracks), number(kPidHkxAnnotations), number(kPidHkxEvents), number(kPidHkxVariables), number(kPidHkxClips), number(kPidHkxAnimations)};
     return {};
 }
 

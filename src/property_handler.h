@@ -69,6 +69,11 @@ enum PluginPid : DWORD {
     kPidHkxGame = 54,
     kPidHkxFrames = 55,
     kPidHkxTracks = 56,
+    kPidHkxAnnotations = 57,  // UInt32  .hkx animation: annotations (weaponSwing, FootLeft, ...)
+    kPidHkxEvents = 58,       // UInt32  .hkx behaviour graph: events
+    kPidHkxVariables = 59,    // UInt32  .hkx behaviour graph: variables
+    kPidHkxClips = 60,        // UInt32  .hkx behaviour graph: clip generators' animations
+    kPidHkxAnimations = 61,   // UInt32  .hkx character: the animations it lists
 };
 
 HRESULT CreatePropertyHandlerFactory(REFIID riid, void** ppv);

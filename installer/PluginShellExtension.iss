@@ -31,7 +31,7 @@
 #define PreviewDetails "prop:" + P + "HeaderVersion;" + P + "FormVersion;" + P + "FormCount;" + P + "RecordCount;" + P + "Flags;" + P + "Light;" + P + "MasterCount;" + P + "DeletedCount;" + P + "DeletedNavmeshes;" + P + "ItmCount;" + P + "Dirty;" + P + "ESLable;" + P + "ESLNote;" + P + "Masters;*System.DateModified;*System.Size;*System.DateCreated"
 #define InfoTip "prop:System.ItemTypeText;System.Size;System.DateModified;" + P + "FormCount;" + P + "TipStatus;" + P + "Masters;" + P + "ESLNote"
 #define TgaDetails "prop:System.ItemTypeText;System.Size;System.DateModified;System.Image.Dimensions;System.Image.BitDepth"
-#define FuzDetails "prop:System.ItemTypeText;System.Size;System.DateModified;System.Media.Duration;System.Audio.EncodingBitrate;" + P + "SampleRate;" + P + "Channels;" + P + "AudioFormat;" + P + "FuzVersion"
+#define FuzDetails "prop:System.ItemTypeText;System.Size;System.DateModified;System.Media.Duration;System.Audio.EncodingBitrate;" + P + "SampleRate;" + P + "Channels;" + P + "AudioFormat;" + P + "FuzVersion;" + P + "HasLip;" + P + "LipVersion;" + P + "LipUnits"
 
 [Setup]
 AppId={{F78B36DB-E7CD-4FA3-B923-5643F4FD3ADB}

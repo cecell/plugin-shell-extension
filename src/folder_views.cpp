@@ -56,7 +56,8 @@ const std::vector<PresetDefinition>& PresetDefinitions() {
           PSE_COLUMN L"FuzVersion", PSE_COLUMN L"HasLip", PSE_COLUMN L"LipVersion", PSE_COLUMN L"LipUnits"}},
         {L"Scripts", {PSE_COLUMN L"ScriptName", PSE_COLUMN L"ScriptCompiled", PSE_COLUMN L"ScriptExtends", PSE_COLUMN L"ScriptFunctions", PSE_COLUMN L"ScriptProperties", PSE_COLUMN L"ScriptStates", PSE_COLUMN L"ScriptFlags", PSE_COLUMN L"ScriptCompiledState"}},
         {L"Archives", {PSE_COLUMN L"BsaGame", PSE_COLUMN L"BsaVersion", PSE_COLUMN L"BsaFiles", PSE_COLUMN L"BsaFolders", PSE_COLUMN L"BsaContains", PSE_COLUMN L"BsaCompression", PSE_COLUMN L"BsaUnpacked", PSE_COLUMN L"BsaHasPlugin"}},
-        {L"Animations", {PSE_COLUMN L"HkxContent", PSE_COLUMN L"HkxGame", L"System.Media.Duration", PSE_COLUMN L"HkxFrames", PSE_COLUMN L"HkxTracks"}},
+        {L"Animations", {PSE_COLUMN L"HkxContent", PSE_COLUMN L"HkxGame", L"System.Media.Duration", PSE_COLUMN L"HkxFrames", PSE_COLUMN L"HkxTracks",
+          PSE_COLUMN L"HkxAnnotations", PSE_COLUMN L"HkxEvents", PSE_COLUMN L"HkxVariables", PSE_COLUMN L"HkxClips", PSE_COLUMN L"HkxAnimations"}},
     };
     return presets;
 }

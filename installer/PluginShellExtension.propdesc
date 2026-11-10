@@ -394,5 +394,40 @@
       <displayInfo displayType="Number" defaultColumnWidth="7" alignment="Right"/>
     </propertyDescription>
 
+    <propertyDescription name="Cecell.PluginShellExtension.HkxAnnotations" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="57">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Annotations"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="11" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.HkxEvents" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="58">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Events"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="7" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.HkxVariables" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="59">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Variables"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.HkxClips" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="60">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Clips"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="6" alignment="Right"/>
+    </propertyDescription>
+
+    <propertyDescription name="Cecell.PluginShellExtension.HkxAnimations" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="61">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk"/>
+      <labelInfo label="Anim List"/>
+      <typeInfo type="UInt32" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
+    </propertyDescription>
+
   </propertyDescriptionList>
 </schema>
