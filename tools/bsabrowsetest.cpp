@@ -35,6 +35,7 @@
 #include <shlguid.h>
 #include <wrl/client.h>
 #include <initguid.h>
+#include <thumbcache.h>
 #include <propkey.h>
 #include <filesystem>
 #include <fstream>
@@ -637,6 +638,88 @@ int FileColumns(const wchar_t* dllPath, const wchar_t* file) {
     return 0;
 }
 
+// Asks Windows for each picture's thumbnail the way a view does, through a shell item.
+int BsaThumbs(const wchar_t* dllPath, const wchar_t* archive, const wchar_t* folderName, int limit, const wchar_t* bmp) {
+    using Microsoft::WRL::ComPtr;
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    HMODULE dll = LoadLibraryW(dllPath);
+    auto get = dll ? reinterpret_cast<HRESULT(__stdcall*)(REFCLSID, REFIID, void**)>(GetProcAddress(dll, "DllGetClassObject")) : nullptr;
+    ComPtr<IClassFactory> factory;
+    ComPtr<IPersistFolder> persist;
+    PIDLIST_ABSOLUTE pidl = nullptr;
+    if (!get || FAILED(get(pse::kClsidBsaFolder, IID_PPV_ARGS(&factory))) || FAILED(factory->CreateInstance(nullptr, IID_PPV_ARGS(&persist)))) return 2;
+    if (FAILED(SHParseDisplayName(archive, nullptr, &pidl, 0, nullptr)) || FAILED(persist->Initialize(pidl))) return 2;
+    ComPtr<IShellFolder> root, folder;
+    persist.As(&root);
+    folder = root;
+    std::wstring path = folderName;
+    size_t at = 0;
+    while (at < path.size()) {
+        size_t end = path.find(L'\\', at);
+        if (end == std::wstring::npos) end = path.size();
+        std::wstring part = path.substr(at, end - at);
+        at = end + 1;
+        PIDLIST_RELATIVE child = nullptr;
+        ComPtr<IShellFolder> next;
+        if (FAILED(folder->ParseDisplayName(nullptr, nullptr, part.data(), nullptr, &child, nullptr)) || FAILED(folder->BindToObject(child, nullptr, IID_PPV_ARGS(&next)))) return 3;
+        CoTaskMemFree(child);
+        folder = next;
+    }
+    ComPtr<IEnumIDList> list;
+    if (folder->EnumObjects(nullptr, SHCONTF_NONFOLDERS, &list) != S_OK) return 3;
+    PITEMID_CHILD item = nullptr;
+    int tried = 0, made = 0, refused = 0;
+    HRESULT lastFail = S_OK;
+    bool saved = false;
+    while (tried < limit && list->Next(1, &item, nullptr) == S_OK) {
+        ComPtr<IThumbnailProvider> direct;
+        PCUITEMID_CHILD one = item;
+        HRESULT hr = folder->GetUIObjectOf(nullptr, 1, &one, IID_IThumbnailProvider, nullptr, reinterpret_cast<void**>(direct.GetAddressOf()));
+        if (FAILED(hr)) { ++refused; CoTaskMemFree(item); continue; }
+        ++tried;
+        HBITMAP bitmap = nullptr;
+        WTS_ALPHATYPE alpha;
+        hr = direct->GetThumbnail(256, &bitmap, &alpha);
+        if (SUCCEEDED(hr) && bitmap) {
+            ++made;
+            BITMAP b{};
+            GetObjectW(bitmap, sizeof(b), &b);
+            if (!saved) {
+                wprintf(L"first thumbnail %ldx%ld bits=%d\n", b.bmWidth, b.bmHeight, b.bmBitsPixel);
+                HDC dc = GetDC(nullptr);
+                BITMAPINFOHEADER h{sizeof(h)};
+                h.biWidth = b.bmWidth; h.biHeight = -b.bmHeight; h.biPlanes = 1; h.biBitCount = 32;
+                std::vector<uint8_t> px(4 * b.bmWidth * b.bmHeight);
+                GetDIBits(dc, bitmap, 0, b.bmHeight, px.data(), reinterpret_cast<BITMAPINFO*>(&h), DIB_RGB_COLORS);
+                ReleaseDC(nullptr, dc);
+                h.biHeight = b.bmHeight;
+                std::ofstream f{std::filesystem::path(bmp), std::ios::binary};
+                BITMAPFILEHEADER fh{0x4D42, static_cast<DWORD>(54 + px.size()), 0, 0, 54};
+                f.write(reinterpret_cast<char*>(&fh), sizeof(fh));
+                f.write(reinterpret_cast<char*>(&h), sizeof(h));
+                for (LONG y = b.bmHeight - 1; y >= 0; --y) f.write(reinterpret_cast<char*>(px.data()) + 4 * b.bmWidth * y, 4 * b.bmWidth);
+                saved = true;
+            }
+            DeleteObject(bitmap);
+        } else {
+            lastFail = hr;
+        }
+        CoTaskMemFree(item);
+    }
+    wprintf(L"tried=%d thumbnails=%d failed=%d not-pictures=%d lastFail=0x%08lx\n", tried, made, tried - made, refused, static_cast<unsigned long>(lastFail));
+    wchar_t temp[MAX_PATH];
+    GetTempPathW(MAX_PATH, temp);
+    int left = 0;
+    WIN32_FIND_DATAW fd;
+    HANDLE find = FindFirstFileW((std::wstring(temp) + L"WHAM thumbnails\\*").c_str(), &fd);
+    if (find != INVALID_HANDLE_VALUE) {
+        do { if (fd.cFileName[0] != L'.') ++left; } while (FindNextFileW(find, &fd));
+        FindClose(find);
+    }
+    wprintf(L"temporary files left behind=%d\n", left);
+    return 0;
+}
+
 int NameWindowShot(const wchar_t* dllPath, const wchar_t* png) {
     HMODULE dll = LoadLibraryW(dllPath);
     auto run = dll ? reinterpret_cast<int(__stdcall*)(const wchar_t*)>(GetProcAddress(dll, "PseFolderViewNameSnapshot")) : nullptr;
@@ -1040,6 +1123,7 @@ int wmain(int argc, wchar_t** argv) {
     if (argc == 6 && !wcscmp(argv[1], L"--hashwindow")) return HashWindow(argv[2], argv[3], argv[4], argv[5]);
     if (argc == 3 && !wcscmp(argv[1], L"--assetfacts")) return AssetFacts(argv[2]);
     if (argc == 4 && !wcscmp(argv[1], L"--filecolumns")) return FileColumns(argv[2], argv[3]);
+    if (argc == 7 && !wcscmp(argv[1], L"--bsathumbs")) return BsaThumbs(argv[2], argv[3], argv[4], _wtoi(argv[5]), argv[6]);
     if (argc == 3 && !wcscmp(argv[1], L"--upgrade")) return HeaderUpgrade(argv[2]);
     if (argc == 4 && !wcscmp(argv[1], L"--pluginmenu")) return PluginMenu(argv[2], argv[3]);
     if (argc == 6 && !wcscmp(argv[1], L"--bsadrop")) return BsaDrop(argv[2], argv[3], argv[4], _wtoi(argv[5]));

@@ -8,7 +8,7 @@
 # earlier run unchanged, so the released files are byte for byte the ones
 # that run hashed (and that were scanned): rebuilding would change the hashes.
 #
-# Verify a download:  gh attestation verify <file> --repo cecell/plugin-shell-extension
+# Verify a download:  gh attestation verify <file> --repo cecell/wham-asset-manager
 # (for runs since the repository became public; the SHA-256 list is always produced.)
 #
 # After the upload, the DLL and the installer are submitted to VirusTotal

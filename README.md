@@ -12,7 +12,7 @@ It only reads plugins; it never changes them.
 ## Download
 
 Get `WHAM-<version>-setup.exe` from the
-[latest release](https://github.com/cecell/plugin-shell-extension/releases/latest),
+[latest release](https://github.com/cecell/wham-asset-manager/releases/latest),
 or from [Nexus Mods](https://www.nexusmods.com/skyrimspecialedition/mods/197761).
 
 Requires Windows 10 or 11, 64-bit.
@@ -203,7 +203,7 @@ Windows runner, not on a personal PC:
   provenance, which ties each file's hash to the commit and the run:
 
 ```
-gh attestation verify WHAM-<version>-setup.exe --repo cecell/plugin-shell-extension
+gh attestation verify WHAM-<version>-setup.exe --repo cecell/wham-asset-manager
 ```
 
 0.90 was built while the repository was still private, so it has no

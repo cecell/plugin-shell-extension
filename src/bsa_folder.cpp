@@ -27,7 +27,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include <thumbcache.h>
 #include "bsa_archive.h"
+#include "work_budget.h"
 #include "context_menu.h"
 #include "registration.h"
 
@@ -168,6 +170,97 @@ struct Column {
 };
 const Column kColumns[] = {{L"Name", LVCFMT_LEFT, 40}, {L"Size", LVCFMT_RIGHT, 12}, {L"Type", LVCFMT_LEFT, 24}};
 constexpr UINT kColumnCount = 3;
+
+bool HasPictureThumbnail(const std::wstring& name) {
+    const wchar_t* ext = PathFindExtensionW(name.c_str());
+    for (const wchar_t* e : {L".dds", L".tga", L".png", L".jpg", L".jpeg", L".bmp", L".gif", L".tif", L".tiff"}) {
+        if (_wcsicmp(ext, e) == 0) return true;
+    }
+    return false;
+}
+
+// A picture for the large icon views. The file is copied out for a moment and
+// Windows makes the thumbnail, so it looks the same as one in a normal folder.
+class Thumbnail final : public IThumbnailProvider, public IExtractImage {
+public:
+    Thumbnail(ArchivePtr archive, int node) : archive_(std::move(archive)), node_(node) { InterlockedIncrement(&g_dllRefs); }
+
+    IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
+        if (!ppv) return E_POINTER;
+        if (riid == IID_IUnknown || riid == IID_IThumbnailProvider) *ppv = static_cast<IThumbnailProvider*>(this);
+        else if (riid == IID_IExtractImage) *ppv = static_cast<IExtractImage*>(this);
+        else {
+            *ppv = nullptr;
+            return E_NOINTERFACE;
+        }
+        AddRef();
+        return S_OK;
+    }
+    IFACEMETHODIMP_(ULONG) AddRef() override { return static_cast<ULONG>(InterlockedIncrement(&refs_)); }
+    IFACEMETHODIMP_(ULONG) Release() override {
+        long r = InterlockedDecrement(&refs_);
+        if (r == 0) delete this;
+        return static_cast<ULONG>(r);
+    }
+
+    IFACEMETHODIMP GetThumbnail(UINT size, HBITMAP* bitmap, WTS_ALPHATYPE* alpha) override {
+        if (!bitmap) return E_POINTER;
+        *bitmap = nullptr;
+        if (alpha) *alpha = WTSAT_UNKNOWN;
+        return Make(size, bitmap);
+    }
+
+    IFACEMETHODIMP GetLocation(LPWSTR path, DWORD chars, DWORD*, const SIZE* size, DWORD, DWORD*) override {
+        if (size) size_ = (std::max)(size->cx, size->cy);
+        if (!path || !chars) return E_POINTER;
+        return StringCchCopyW(path, chars, (archive_->Path() + L"\\" + archive_->RelativePath(node_)).c_str());
+    }
+    IFACEMETHODIMP Extract(HBITMAP* bitmap) override {
+        if (!bitmap) return E_POINTER;
+        *bitmap = nullptr;
+        return Make(static_cast<UINT>(size_), bitmap);
+    }
+
+private:
+    ~Thumbnail() { InterlockedDecrement(&g_dllRefs); }
+
+    HRESULT Make(UINT size, HBITMAP* bitmap) {
+        try {
+            WorkSlot slot(WorkKind::Background);
+            std::vector<uint8_t> data;
+            if (!archive_->Read(node_, &data) || data.empty()) return E_FAIL;
+            wchar_t temp[MAX_PATH];
+            if (!GetTempPathW(ARRAYSIZE(temp), temp)) return E_FAIL;
+            static volatile long counter = 0;
+            const std::wstring dir = std::wstring(temp) + L"WHAM thumbnails";
+            CreateDirectoryW(dir.c_str(), nullptr);
+            const std::wstring file = dir + L"\\" + std::to_wstring(GetCurrentProcessId()) + L"_" + std::to_wstring(InterlockedIncrement(&counter)) + PathFindExtensionW(archive_->At(node_).name.c_str());
+            HANDLE h = CreateFileW(file.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY, nullptr);
+            if (h == INVALID_HANDLE_VALUE) return HRESULT_FROM_WIN32(GetLastError());
+            DWORD wrote = 0;
+            const BOOL ok = WriteFile(h, data.data(), static_cast<DWORD>(data.size()), &wrote, nullptr) && wrote == data.size();
+            CloseHandle(h);
+            HRESULT hr = ok ? S_OK : E_FAIL;
+            IShellItemImageFactory* factory = nullptr;
+            if (SUCCEEDED(hr)) hr = SHCreateItemFromParsingName(file.c_str(), nullptr, IID_PPV_ARGS(&factory));
+            if (SUCCEEDED(hr)) {
+                const SIZE want{static_cast<LONG>(size), static_cast<LONG>(size)};
+                hr = factory->GetImage(want, SIIGBF_THUMBNAILONLY | SIIGBF_RESIZETOFIT, bitmap);
+                factory->Release();
+            }
+            DeleteFileW(file.c_str());
+            slot.Pace();
+            return hr;
+        } catch (const std::bad_alloc&) {
+            return E_OUTOFMEMORY;
+        }
+    }
+
+    long refs_ = 1;
+    ArchivePtr archive_;
+    int node_;
+    LONG size_ = 96;
+};
 
 class Folder final : public IShellFolder2, public IPersistFolder2 {
 public:
@@ -377,6 +470,14 @@ public:
             if (nodes.empty()) return E_INVALIDARG;
             if (riid == IID_IContextMenu || riid == IID_IContextMenu2 || riid == IID_IContextMenu3) return MakeMenu(this, nodes, riid, ppv);
             if (riid == IID_IDataObject) return MakeData(archive_, nodes, riid, ppv);
+            if ((riid == IID_IThumbnailProvider || riid == IID_IExtractImage) && nodes.size() == 1) {
+                const Node& n = archive_->At(nodes[0]);
+                if (n.dir() || !HasPictureThumbnail(n.name)) return E_NOINTERFACE;
+                auto* thumbnail = new Thumbnail(archive_, nodes[0]);
+                const HRESULT hr = thumbnail->QueryInterface(riid, ppv);
+                thumbnail->Release();
+                return hr;
+            }
             if ((riid == IID_IExtractIconW || riid == IID_IExtractIconA) && nodes.size() == 1) {
                 const Node& n = archive_->At(nodes[0]);
                 return SHCreateFileExtractIconW(n.name.c_str(), n.dir() ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL, riid, ppv);

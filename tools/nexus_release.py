@@ -44,8 +44,8 @@ MOD = "197761"                      # URL id of the Nexus page
 FILE_GROUP = "8293728"              # the "Plugin Shell Extension" file on that page
 FILE_NAME = "WHAM"
 OLD_FILE_NAME = "Plugin Shell Extension"  # what the page's file was called before the rename
-REPO_URL = "https://github.com/cecell/plugin-shell-extension"
-UA = "plugin-shell-extension-release/1.0"
+REPO_URL = "https://github.com/cecell/wham-asset-manager"
+UA = "wham-asset-manager-release/1.0"
 SKIP_SECTIONS = ("upgrading", "verification")
 
 
