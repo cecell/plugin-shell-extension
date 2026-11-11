@@ -19,7 +19,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 include(FetchContent)
 FetchContent_Declare(bsa_reader
     GIT_REPOSITORY https://github.com/cecell/bsa-reader.git
-    GIT_TAG 82d7e72fdbbb6c154aff7146db32a2b21b5eab00)  # after v0.1.1: the engine's hash corner cases
+    GIT_TAG 7ed7d24b5ddd99f92649b3857b0cee25b2415336)  # after v0.1.1: the engine's hash corner cases
 FetchContent_MakeAvailable(bsa_reader)
 # beth-asset-metadata (GPL-3.0, github.com/cecell/beth-asset-metadata): header
 # facts for the .tga and .fuz property handler. Pinned to the commit of tag
