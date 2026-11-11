@@ -2,6 +2,9 @@
 
 #include <windows.h>
 #include <shlobj.h>
+#include <bcrypt.h>
+
+#pragma comment(lib, "bcrypt.lib")
 
 #include <algorithm>
 #include <mutex>
@@ -144,12 +147,29 @@ int PhysicalCores() {
 
 // The header of every compiled script (.pex) names a user and a computer.
 // Bethesda's compiler writes the Windows account and machine name there;
-// these are what Compile writes instead.
-const char kDefaultPapyrusUser[] = "skqe";
-const char kDefaultPapyrusComputer[] = "papyrus";
+// Compile writes these instead. Each install gets its own random pair the
+// first time settings.json is written (from the system's random generator,
+// not from any hardware, account or licence), so a user can tell their own
+// scripts without the names saying anything about them. These two are only
+// the fallback when no random value can be made or stored.
+const char kFallbackPapyrusUser[] = "skqe";
+const char kFallbackPapyrusComputer[] = "papyrus";
 
-// settings.json as written for a new install, and when an older file lacks a
-// key (its workerThreads value is kept).
+// "<prefix>" + 12 random hex digits; empty when the generator fails.
+std::string RandomName(const char* prefix) {
+    unsigned char bytes[6] = {};
+    if (!BCRYPT_SUCCESS(BCryptGenRandom(nullptr, bytes, sizeof(bytes), BCRYPT_USE_SYSTEM_PREFERRED_RNG))) return {};
+    static const char kHex[] = "0123456789abcdef";
+    std::string out = prefix;
+    for (unsigned char b : bytes) {
+        out += kHex[b >> 4];
+        out += kHex[b & 15];
+    }
+    return out;
+}
+
+// settings.json as written for a new install, and when the papyrus names are
+// missing or empty (the other values are kept).
 std::string SettingsText(int64_t workerThreads, const std::string& user, const std::string& computer) {
     std::string out;
     WriteJson(Value::Str(user), &out);
@@ -164,14 +184,16 @@ std::string SettingsText(int64_t workerThreads, const std::string& user, const s
            "  \"papyrusUser\": " + userJson + ",\n"
            "  \"papyrusComputer\": " + computerJson + ",\n"
            "  \"_papyrus\": \"The user and computer names Compile writes into the header of every .pex it makes. Bethesda's "
-           "compiler puts your Windows account and computer name there, which anyone with the file can read. Up to 64 "
-           "plain characters each; anything else is dropped. Takes effect on the next Compile.\"\n"
+           "compiler puts your Windows account and computer name there, which anyone with the file can read. These start "
+           "as random values made for this install, so you can recognise your own scripts without them saying who you "
+           "are. Change them to anything: up to 64 plain characters each, anything else is dropped. Empty them to get "
+           "new random ones. Takes effect on the next Compile.\"\n"
            "}\n";
 }
 
-// A header name: printable ASCII only, trimmed, at most 64 characters;
-// empty = the default.
-std::string HeaderName(const Value* v, const char* fallback) {
+// A header name: printable ASCII only, trimmed, at most 64 characters; empty
+// when there is nothing usable.
+std::string HeaderName(const Value* v) {
     std::string out;
     if (v && v->kind() == Value::Kind::String) {
         for (char c : v->AsString())
@@ -179,19 +201,26 @@ std::string HeaderName(const Value* v, const char* fallback) {
         while (!out.empty() && out.back() == ' ') out.pop_back();
         while (!out.empty() && out.front() == ' ') out.erase(out.begin());
     }
-    return out.empty() ? fallback : out;
+    return out;
 }
 
 struct Settings {
     int workerThreads = 0;
-    std::string papyrusUser = kDefaultPapyrusUser;
-    std::string papyrusComputer = kDefaultPapyrusComputer;
+    std::string papyrusUser = kFallbackPapyrusUser;
+    std::string papyrusComputer = kFallbackPapyrusComputer;
 };
 
-// settings.json, re-read whenever its size or write time changes. Created with
-// the defaults when missing; an older file that parses but lacks the papyrus
-// keys is rewritten once with them added and its own workerThreads kept. A
-// file that doesn't parse is left alone and the defaults are used.
+void WriteSettings(const std::wstring& path, const Settings& s) {
+    HANDLE w = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
+    if (w == INVALID_HANDLE_VALUE) return;
+    WriteAll(w, SettingsText(s.workerThreads, s.papyrusUser, s.papyrusComputer));
+    CloseHandle(w);
+}
+
+// settings.json, re-read whenever its size or write time changes. Created when
+// missing, with random papyrus names; a file that parses but lacks a papyrus
+// name, or has an empty one, gets a random one written in (its other values
+// kept). A file that doesn't parse is left alone and the fallbacks are used.
 Settings CurrentSettings() {
     static std::mutex lock;
     static uint64_t seenStamp = ~0ull;
@@ -203,12 +232,19 @@ Settings CurrentSettings() {
     WIN32_FILE_ATTRIBUTE_DATA fa{};
     if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &fa)) {
         CreateDirectoryW(dir.c_str(), nullptr);
+        Settings fresh;
+        const std::string user = RandomName("wham-"), computer = RandomName("pc-");
+        if (!user.empty() && !computer.empty()) {
+            fresh.papyrusUser = user;
+            fresh.papyrusComputer = computer;
+        }
         HANDLE f = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, 0, nullptr);
         if (f != INVALID_HANDLE_VALUE) {
-            WriteAll(f, SettingsText(0, kDefaultPapyrusUser, kDefaultPapyrusComputer));
+            WriteAll(f, SettingsText(fresh.workerThreads, fresh.papyrusUser, fresh.papyrusComputer));
             CloseHandle(f);
         }
-        current = Settings();
+        current = fresh;
+        seenStamp = ~0ull;  // read it back next time, so the stamp is right
         return current;
     }
     uint64_t stamp = (static_cast<uint64_t>(fa.ftLastWriteTime.dwHighDateTime) << 32) |
@@ -229,18 +265,20 @@ Settings CurrentSettings() {
     const Value* v = root.Find("workerThreads");
     if (!v) v = root.Find("itmThreads");
     if (v && v->ToInt(&n)) current.workerThreads = static_cast<int>(n);
-    const Value* user = root.Find("papyrusUser");
-    const Value* computer = root.Find("papyrusComputer");
-    current.papyrusUser = HeaderName(user, kDefaultPapyrusUser);
-    current.papyrusComputer = HeaderName(computer, kDefaultPapyrusComputer);
-    if (!user || !computer) {
-        // An older settings.json: add the new keys so users can find them.
-        HANDLE w = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
-        if (w != INVALID_HANDLE_VALUE) {
-            WriteAll(w, SettingsText(current.workerThreads, current.papyrusUser, current.papyrusComputer));
-            CloseHandle(w);
-        }
+    std::string user = HeaderName(root.Find("papyrusUser"));
+    std::string computer = HeaderName(root.Find("papyrusComputer"));
+    bool rewrite = false;
+    if (user.empty()) {
+        user = RandomName("wham-");
+        rewrite = !user.empty();
     }
+    if (computer.empty()) {
+        computer = RandomName("pc-");
+        rewrite = rewrite || !computer.empty();
+    }
+    if (!user.empty()) current.papyrusUser = user;
+    if (!computer.empty()) current.papyrusComputer = computer;
+    if (rewrite) WriteSettings(path, current);  // the next read sees the new stamp and these values
     return current;
 }
 

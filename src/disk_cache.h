@@ -26,7 +26,7 @@ void DiskCachePut(const std::wstring& key, const std::wstring& value);
 int WorkerThreadCount();
 
 // The user and computer names Compile writes into a .pex header: "papyrusUser"
-// and "papyrusComputer" in the same settings.json (defaults skqe / papyrus).
+// and "papyrusComputer" in the same settings.json (random per install).
 // Printable ASCII, at most 64 characters.
 std::string PapyrusHeaderUser();
 std::string PapyrusHeaderComputer();

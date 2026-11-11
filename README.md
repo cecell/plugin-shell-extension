@@ -134,11 +134,15 @@ hashing) is set in `%LOCALAPPDATA%\Plugin Shell Extension\settings.json`
 Press F5 after changing it.
 
 The same file sets what **Compile** writes into the header of every `.pex` it
-makes: `"papyrusUser"` and `"papyrusComputer"` (defaults `skqe` and `papyrus`).
-Bethesda's compiler puts your Windows account and computer name there, and
-anyone who has the file can read them. Up to 64 plain characters each; the
-next Compile uses them. Older settings files get the two keys added the first
-time the extension reads them.
+makes: `"papyrusUser"` and `"papyrusComputer"`. Bethesda's compiler puts your
+Windows account and computer name there, and anyone who has the file can read
+them. Instead, each install starts with its own random pair, such as
+`wham-333bf281ffe8` and `pc-4a487424864e`. They come from Windows' random
+generator, not from your hardware, account or licence, so they say nothing
+about you, but you can still recognise scripts you compiled. Change them to
+anything (up to 64 plain characters each), or empty one to get a new random
+value; the next Compile uses them. Older settings files get the two keys added
+the first time the extension reads them.
 
 Windows only accepts these properties registered for the whole machine, so
 this option asks for administrator rights once. The rest of the extension is
