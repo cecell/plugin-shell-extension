@@ -32,7 +32,7 @@ FetchContent_MakeAvailable(asset_metadata)
 # Decompile on .pex and Compile on .psc. Its pex program isn't built here.
 FetchContent_Declare(skqe_papyrus_lib
     GIT_REPOSITORY https://github.com/cecell/skqe-papyrus-decompiler.git
-    GIT_TAG f95fea7134b2752fa85683f19878ebebdcc8ce0c)
+    GIT_TAG b4fa9534655414322f7b3b696253b1979a34b44d)  # v0.91 (rewritten 2026-11-10)
 FetchContent_MakeAvailable(skqe_papyrus_lib)
 # nlohmann/json (MIT): the saved folder views file.
 FetchContent_Declare(nlohmann_json
