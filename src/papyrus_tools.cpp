@@ -17,6 +17,7 @@
 #include <bsa/reader.hpp>
 
 #include "bsa_archive.h"
+#include "disk_cache.h"
 #include "papyrus/compile.hpp"
 #include "papyrus/decompile.hpp"
 #include "papyrus/pex.hpp"
@@ -394,6 +395,9 @@ PapyrusResult PapyrusWorkspace::CompileUnguarded(const std::wstring& pscPath, co
         psc::CompileOptions options;
         options.flags = flags;
         options.resolver = &resolver;
+        // The header's user and computer: settings.json, not this PC's names.
+        options.userName = PapyrusHeaderUser();
+        options.computerName = PapyrusHeaderComputer();
 
         pex::Script script;
         std::vector<psc::Diagnostic> diagnostics;
@@ -405,6 +409,9 @@ PapyrusResult PapyrusWorkspace::CompileUnguarded(const std::wstring& pscPath, co
             result.text = LeafOf(pscPath) + L" didn't compile:\r\n" + messages;
             return result;
         }
+        // The header's source name: the file name only. The full path would
+        // put the folder (often holding the Windows account name) in the .pex.
+        script.header.sourceName = Utf8(fs::path(pscPath).filename().wstring());
         std::vector<uint8_t> bytes;
         std::string error;
         if (pex::write(script, bytes, &error) != pex::Status::Ok) {

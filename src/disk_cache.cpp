@@ -142,59 +142,118 @@ int PhysicalCores() {
     return cores ? cores : 1;
 }
 
-const char kDefaultSettings[] =
-    "{\n"
-    "  \"workerThreads\": 0,\n"
-    "  \"_workerThreads\": \"How many background jobs the whole extension runs at once: #ITM checks, extracting, testing and "
-    "hashing. 0 = automatic: half the CPU cores, from 1 to 6. Press F5 in Explorer after changing it.\"\n"
-    "}\n";
+// The header of every compiled script (.pex) names a user and a computer.
+// Bethesda's compiler writes the Windows account and machine name there;
+// these are what Compile writes instead.
+const char kDefaultPapyrusUser[] = "skqe";
+const char kDefaultPapyrusComputer[] = "papyrus";
+
+// settings.json as written for a new install, and when an older file lacks a
+// key (its workerThreads value is kept).
+std::string SettingsText(int64_t workerThreads, const std::string& user, const std::string& computer) {
+    std::string out;
+    WriteJson(Value::Str(user), &out);
+    const std::string userJson = out;
+    out.clear();
+    WriteJson(Value::Str(computer), &out);
+    const std::string computerJson = out;
+    return "{\n"
+           "  \"workerThreads\": " + std::to_string(workerThreads) + ",\n"
+           "  \"_workerThreads\": \"How many background jobs the whole extension runs at once: #ITM checks, extracting, "
+           "testing and hashing. 0 = automatic: half the CPU cores, from 1 to 6. Press F5 in Explorer after changing it.\",\n"
+           "  \"papyrusUser\": " + userJson + ",\n"
+           "  \"papyrusComputer\": " + computerJson + ",\n"
+           "  \"_papyrus\": \"The user and computer names Compile writes into the header of every .pex it makes. Bethesda's "
+           "compiler puts your Windows account and computer name there, which anyone with the file can read. Up to 64 "
+           "plain characters each; anything else is dropped. Takes effect on the next Compile.\"\n"
+           "}\n";
+}
+
+// A header name: printable ASCII only, trimmed, at most 64 characters;
+// empty = the default.
+std::string HeaderName(const Value* v, const char* fallback) {
+    std::string out;
+    if (v && v->kind() == Value::Kind::String) {
+        for (char c : v->AsString())
+            if (c >= 0x20 && c <= 0x7E && out.size() < 64) out += c;
+        while (!out.empty() && out.back() == ' ') out.pop_back();
+        while (!out.empty() && out.front() == ' ') out.erase(out.begin());
+    }
+    return out.empty() ? fallback : out;
+}
+
+struct Settings {
+    int workerThreads = 0;
+    std::string papyrusUser = kDefaultPapyrusUser;
+    std::string papyrusComputer = kDefaultPapyrusComputer;
+};
+
+// settings.json, re-read whenever its size or write time changes. Created with
+// the defaults when missing; an older file that parses but lacks the papyrus
+// keys is rewritten once with them added and its own workerThreads kept. A
+// file that doesn't parse is left alone and the defaults are used.
+Settings CurrentSettings() {
+    static std::mutex lock;
+    static uint64_t seenStamp = ~0ull;
+    static Settings current;
+    std::lock_guard<std::mutex> g(lock);
+    std::wstring dir = CacheDir();
+    if (dir.empty()) return current;
+    std::wstring path = dir + L"\\settings.json";
+    WIN32_FILE_ATTRIBUTE_DATA fa{};
+    if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &fa)) {
+        CreateDirectoryW(dir.c_str(), nullptr);
+        HANDLE f = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, 0, nullptr);
+        if (f != INVALID_HANDLE_VALUE) {
+            WriteAll(f, SettingsText(0, kDefaultPapyrusUser, kDefaultPapyrusComputer));
+            CloseHandle(f);
+        }
+        current = Settings();
+        return current;
+    }
+    uint64_t stamp = (static_cast<uint64_t>(fa.ftLastWriteTime.dwHighDateTime) << 32) |
+                     fa.ftLastWriteTime.dwLowDateTime ^ fa.nFileSizeLow;
+    if (stamp == seenStamp) return current;  // unchanged since the last read
+    seenStamp = stamp;
+    current = Settings();
+    HANDLE f = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0,
+                           nullptr);
+    if (f == INVALID_HANDLE_VALUE) return current;
+    char text[8192] = {};
+    DWORD got = 0;
+    ReadFile(f, text, sizeof(text) - 1, &got, nullptr);
+    CloseHandle(f);
+    Value root;
+    if (!ParseJson(std::string_view(text, got), &root, nullptr) || root.kind() != Value::Kind::Map) return current;
+    int64_t n = 0;
+    const Value* v = root.Find("workerThreads");
+    if (!v) v = root.Find("itmThreads");
+    if (v && v->ToInt(&n)) current.workerThreads = static_cast<int>(n);
+    const Value* user = root.Find("papyrusUser");
+    const Value* computer = root.Find("papyrusComputer");
+    current.papyrusUser = HeaderName(user, kDefaultPapyrusUser);
+    current.papyrusComputer = HeaderName(computer, kDefaultPapyrusComputer);
+    if (!user || !computer) {
+        // An older settings.json: add the new keys so users can find them.
+        HANDLE w = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
+        if (w != INVALID_HANDLE_VALUE) {
+            WriteAll(w, SettingsText(current.workerThreads, current.papyrusUser, current.papyrusComputer));
+            CloseHandle(w);
+        }
+    }
+    return current;
+}
 
 }  // namespace
 
 int WorkerThreadCount() {
-    static std::mutex lock;
-    static uint64_t seenStamp = ~0ull;
-    static int setting = 0;
-    std::lock_guard<std::mutex> g(lock);
-    std::wstring dir = CacheDir();
-    if (!dir.empty()) {
-        std::wstring path = dir + L"\\settings.json";
-        WIN32_FILE_ATTRIBUTE_DATA fa{};
-        if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &fa)) {
-            CreateDirectoryW(dir.c_str(), nullptr);
-            HANDLE f = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, 0, nullptr);
-            if (f != INVALID_HANDLE_VALUE) {
-                WriteAll(f, kDefaultSettings);
-                CloseHandle(f);
-            }
-            setting = 0;
-        } else {
-            uint64_t stamp = (static_cast<uint64_t>(fa.ftLastWriteTime.dwHighDateTime) << 32) |
-                             fa.ftLastWriteTime.dwLowDateTime ^ fa.nFileSizeLow;
-            if (stamp != seenStamp) {  // changed (or first look): read it again
-                seenStamp = stamp;
-                setting = 0;
-                HANDLE f = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                                       OPEN_EXISTING, 0, nullptr);
-                if (f != INVALID_HANDLE_VALUE) {
-                    char text[4096] = {};
-                    DWORD got = 0;
-                    ReadFile(f, text, sizeof(text) - 1, &got, nullptr);
-                    CloseHandle(f);
-                    Value root;
-                    int64_t n = 0;
-                    if (ParseJson(std::string_view(text, got), &root, nullptr) && root.kind() == Value::Kind::Map) {
-                        const Value* v = root.Find("workerThreads");
-                        if (!v) v = root.Find("itmThreads");
-                        if (v && v->ToInt(&n)) setting = static_cast<int>(n);
-                    }
-                }
-            }
-        }
-    }
+    const int setting = CurrentSettings().workerThreads;
     if (setting > 0) return std::min(setting, 64);
     return std::clamp(PhysicalCores() / 2, 1, 6);
 }
+
+std::string PapyrusHeaderUser() { return CurrentSettings().papyrusUser; }
+std::string PapyrusHeaderComputer() { return CurrentSettings().papyrusComputer; }
 
 bool DiskCacheGet(const std::wstring& key, std::wstring* value) {
     std::lock_guard<std::mutex> g(g_lock);

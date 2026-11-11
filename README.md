@@ -128,9 +128,17 @@ its masters changes. Explorer watches the folder, so after a plugin or one
 of its masters is cleaned or updated, the affected rows check again by
 themselves.
 
-How many plugins #ITM checks at once is set in
-`%LOCALAPPDATA%\Plugin Shell Extension\settings.json` (`"itmThreads"`). `0`,
-the default, means half the CPU cores, from 1 to 6. Press F5 after changing it.
+How many background jobs run at once (#ITM checks, extracting, testing and
+hashing) is set in `%LOCALAPPDATA%\Plugin Shell Extension\settings.json`
+(`"workerThreads"`). `0`, the default, means half the CPU cores, from 1 to 6.
+Press F5 after changing it.
+
+The same file sets what **Compile** writes into the header of every `.pex` it
+makes: `"papyrusUser"` and `"papyrusComputer"` (defaults `skqe` and `papyrus`).
+Bethesda's compiler puts your Windows account and computer name there, and
+anyone who has the file can read them. Up to 64 plain characters each; the
+next Compile uses them. Older settings files get the two keys added the first
+time the extension reads them.
 
 Windows only accepts these properties registered for the whole machine, so
 this option asks for administrator rights once. The rest of the extension is

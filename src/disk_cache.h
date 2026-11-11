@@ -25,4 +25,10 @@ void DiskCachePut(const std::wstring& key, const std::wstring& value);
 // file is created with the automatic value the first time.
 int WorkerThreadCount();
 
+// The user and computer names Compile writes into a .pex header: "papyrusUser"
+// and "papyrusComputer" in the same settings.json (defaults skqe / papyrus).
+// Printable ASCII, at most 64 characters.
+std::string PapyrusHeaderUser();
+std::string PapyrusHeaderComputer();
+
 }  // namespace pse
