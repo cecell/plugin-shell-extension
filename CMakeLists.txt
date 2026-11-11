@@ -91,7 +91,8 @@ add_library(psetools STATIC
     src/folder_views.cpp
     src/plugin_tools.cpp
     src/asset_facts.cpp
-    src/disk_cache.cpp)
+    src/disk_cache.cpp
+    src/winner.cpp)
 target_include_directories(psetools PUBLIC src)
 target_link_libraries(psetools PUBLIC psepattern bsa::reader asset::metadata skqe::papyrus bcrypt advapi32 shell32 ole32 propsys shlwapi)
 target_link_libraries(psetools PRIVATE nlohmann_json::nlohmann_json)
@@ -113,6 +114,9 @@ target_link_libraries(assetproptest PRIVATE psecore shell32 ole32 shlwapi propsy
 
 add_executable(bsabrowsetest tools/bsabrowsetest.cpp)
 target_link_libraries(bsabrowsetest PRIVATE psecore psetools shell32 ole32 shlwapi user32)
+
+add_executable(winnertest tools/winnertest.cpp)
+target_link_libraries(winnertest PRIVATE psetools)
 
 add_executable(menutest tools/menutest.cpp)
 target_link_libraries(menutest PRIVATE psecore shell32 ole32)

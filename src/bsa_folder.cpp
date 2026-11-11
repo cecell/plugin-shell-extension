@@ -14,6 +14,10 @@
 
 #include <propkey.h>
 
+// The Winner column inside archives in the game's Data folder: Yes when this copy
+// is the one the game loads.
+DEFINE_PROPERTYKEY(PKEY_WHAM_BsaWinner, 0x78b8355f, 0xf091, 0x418e, 0x84, 0xf8, 0xfe, 0x81, 0xdd, 0x8d, 0x04, 0x12, 2);
+
 #include <bsa/reader.hpp>
 
 #include <algorithm>
@@ -32,6 +36,7 @@
 #include "work_budget.h"
 #include "context_menu.h"
 #include "registration.h"
+#include "winner.h"
 
 namespace pse {
 namespace {
@@ -168,8 +173,8 @@ struct Column {
     int format;
     int width;
 };
-const Column kColumns[] = {{L"Name", LVCFMT_LEFT, 40}, {L"Size", LVCFMT_RIGHT, 12}, {L"Type", LVCFMT_LEFT, 24}};
-constexpr UINT kColumnCount = 3;
+const Column kColumns[] = {{L"Name", LVCFMT_LEFT, 40}, {L"Size", LVCFMT_RIGHT, 12}, {L"Type", LVCFMT_LEFT, 24}, {L"Winner", LVCFMT_CENTER, 8}};
+constexpr UINT kWinnerColumn = 3;  // only inside archives in the game's Data folder
 
 bool HasPictureThumbnail(const std::wstring& name) {
     const wchar_t* ext = PathFindExtensionW(name.c_str());
@@ -267,6 +272,7 @@ public:
     Folder() { InterlockedIncrement(&g_dllRefs); }
     Folder(ArchivePtr archive, int node, LPITEMIDLIST pidl, std::wstring display) : archive_(std::move(archive)), node_(node), pidl_(pidl), display_(std::move(display)) {
         InterlockedIncrement(&g_dllRefs);
+        inData_ = archive_ && IsInGameData(archive_->Path());
     }
 
     IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
@@ -308,6 +314,7 @@ public:
             display_ = path;
             archive_ = std::move(archive);
             node_ = 0;
+            inData_ = archive_ && IsInGameData(path);
             // A damaged file still opens, as an empty folder that says why.
             openResult_ = hr;
             return S_OK;
@@ -415,6 +422,9 @@ public:
                     r = sx < sy ? -1 : sx > sy ? 1 : 0;
                 } else if (column == 2) {
                     r = _wcsicmp(TypeText(x->name), TypeText(y->name));
+                } else if (column == kWinnerColumn && inData_ && archive_) {
+                    const int cx = archive_->Child(node, x->name), cy = archive_->Child(node, y->name);
+                    r = _wcsicmp(WinnerText(cx), WinnerText(cy));
                 }
                 if (r == 0) r = StrCmpLogicalW(x->name, y->name);
             }
@@ -509,8 +519,9 @@ public:
     }
     IFACEMETHODIMP GetDefaultColumnState(UINT column, SHCOLSTATEF* state) override {
         if (!state) return E_POINTER;
-        if (column >= kColumnCount) return E_INVALIDARG;
+        if (column >= ColumnCount()) return E_INVALIDARG;
         *state = SHCOLSTATE_ONBYDEFAULT | (column == 1 ? SHCOLSTATE_TYPE_INT : SHCOLSTATE_TYPE_STR);
+        if (column == kWinnerColumn) *state |= SHCOLSTATE_SLOW;  // Explorer asks for it on a background thread
         return S_OK;
     }
     IFACEMETHODIMP GetDetailsEx(PCUITEMID_CHILD item, const SHCOLUMNID* id, VARIANT* out) override {
@@ -523,12 +534,16 @@ public:
             if (IsEqualPropertyKey(key, PKEY_ItemNameDisplay)) return InitVariantFromString(n.name.c_str(), out);
             if (IsEqualPropertyKey(key, PKEY_Size) && !n.dir()) return InitVariantFromUInt64(archive_->Size(node), out);
             if (IsEqualPropertyKey(key, PKEY_ItemTypeText)) return InitVariantFromString(n.dir() ? L"File folder" : TypeText(n.name), out);
+            if (IsEqualPropertyKey(key, PKEY_WHAM_BsaWinner) && inData_ && !n.dir()) {
+                const wchar_t* text = WinnerText(node);
+                return *text ? InitVariantFromString(text, out) : E_FAIL;
+            }
             return E_FAIL;
         });
     }
     IFACEMETHODIMP GetDetailsOf(PCUITEMID_CHILD item, UINT column, SHELLDETAILS* out) override {
         if (!out) return E_POINTER;
-        if (column >= kColumnCount) return E_INVALIDARG;
+        if (column >= ColumnCount()) return E_INVALIDARG;
         return Guard([&]() -> HRESULT {
             out->fmt = kColumns[column].format;
             out->cxChar = kColumns[column].width;
@@ -547,6 +562,8 @@ public:
                     text = size;
                 } else if (column == 2) {
                     text = n.dir() ? L"File folder" : TypeText(n.name);
+                } else if (column == kWinnerColumn && !n.dir()) {
+                    text = WinnerText(node);
                 }
             }
             out->str.uType = STRRET_WSTR;
@@ -555,8 +572,8 @@ public:
     }
     IFACEMETHODIMP MapColumnToSCID(UINT column, SHCOLUMNID* id) override {
         if (!id) return E_POINTER;
-        if (column >= kColumnCount) return E_INVALIDARG;
-        const PROPERTYKEY keys[] = {PKEY_ItemNameDisplay, PKEY_Size, PKEY_ItemTypeText};
+        if (column >= ColumnCount()) return E_INVALIDARG;
+        const PROPERTYKEY keys[] = {PKEY_ItemNameDisplay, PKEY_Size, PKEY_ItemTypeText, PKEY_WHAM_BsaWinner};
         *reinterpret_cast<PROPERTYKEY*>(id) = keys[column];
         return S_OK;
     }
@@ -564,6 +581,44 @@ public:
     const ArchivePtr& GetArchive() const { return archive_; }
     int Current() const { return node_; }
     PCIDLIST_ABSOLUTE Pidl() const { return pidl_; }
+    bool InData() const { return inData_; }
+    UINT ColumnCount() const { return inData_ ? kWinnerColumn + 1 : kWinnerColumn; }
+
+    // Which copy of this file node the game loads. Unknown for folders, outside
+    // the Data folder, or when the plan can't name a winner. The first request in
+    // a folder resolves every file in that folder at once.
+    WinnerResult WinnerOf(int node) const {
+        if (!inData_ || !archive_ || node < 0 || archive_->At(node).dir()) return {};
+        std::lock_guard<std::mutex> g(winnerLock_);
+        auto found = winners_.find(node);
+        if (found != winners_.end()) return found->second;
+        if (!plan_) plan_ = DataWinners::ForArchive(archive_->Path());
+        if (!plan_) return {};
+        std::vector<int> nodes;
+        std::vector<std::wstring> paths;
+        const int parent = archive_->At(node).parent;
+        for (int child : archive_->At(parent < 0 ? 0 : parent).children) {
+            if (archive_->At(child).dir() || winners_.count(child)) continue;
+            nodes.push_back(child);
+            paths.push_back(archive_->RelativePath(child));
+        }
+        if (std::find(nodes.begin(), nodes.end(), node) == nodes.end()) {
+            nodes.push_back(node);
+            paths.push_back(archive_->RelativePath(node));
+        }
+        std::vector<WinnerResult> results;
+        plan_->Resolve(paths, &results);
+        for (size_t i = 0; i < nodes.size(); ++i) winners_[nodes[i]] = results[i];
+        return winners_[node];
+    }
+
+    // "Yes" when this archive's copy is the one the game loads, "No" when another
+    // copy is (or none is loaded), "" when that can't be said.
+    const wchar_t* WinnerText(int node) const {
+        const WinnerResult r = WinnerOf(node);
+        if (r.kind == WinnerResult::Unknown) return L"";
+        return r.kind == WinnerResult::Archive && _wcsicmp(r.path.c_str(), archive_->Path().c_str()) == 0 ? L"Yes" : L"No";
+    }
 
 private:
     ~Folder() {
@@ -612,6 +667,10 @@ private:
     LPITEMIDLIST pidl_ = nullptr;
     std::wstring display_;
     HRESULT openResult_ = E_UNEXPECTED;
+    bool inData_ = false;
+    mutable std::mutex winnerLock_;
+    mutable std::shared_ptr<const DataWinners> plan_;
+    mutable std::unordered_map<int, WinnerResult> winners_;
 };
 
 // ---- Copy and drag: Windows' "virtual files", extracted as they're pasted ----
@@ -777,9 +836,108 @@ HRESULT MakeData(const ArchivePtr& archive, const std::vector<int>& nodes, REFII
     return hr;
 }
 
+// ---- Selecting a file after navigating ----
+
+// Navigation is asynchronous, so the file is selected from a timer on the
+// window's own thread once the view shows the folder (up to about 5 seconds).
+struct PendingSelect {
+    IShellBrowser* browser;
+    std::wstring folder, name;
+    int tries;
+};
+std::mutex g_selectLock;
+std::map<UINT_PTR, PendingSelect> g_selects;
+
+std::wstring ViewFolder(IShellBrowser* browser, IShellFolder** folder) {
+    std::wstring out;
+    IShellView* view = nullptr;
+    if (FAILED(browser->QueryActiveShellView(&view)) || !view) return out;
+    IFolderView* fv = nullptr;
+    if (SUCCEEDED(view->QueryInterface(IID_PPV_ARGS(&fv)))) {
+        IPersistFolder2* pf = nullptr;
+        if (SUCCEEDED(fv->GetFolder(IID_PPV_ARGS(&pf)))) {
+            PIDLIST_ABSOLUTE pidl = nullptr;
+            if (SUCCEEDED(pf->GetCurFolder(&pidl)) && pidl) {
+                PWSTR name = nullptr;
+                if (SUCCEEDED(SHGetNameFromIDList(pidl, SIGDN_DESKTOPABSOLUTEPARSING, &name))) out = name;
+                CoTaskMemFree(name);
+                ILFree(pidl);
+            }
+            pf->Release();
+        }
+        if (folder) fv->GetFolder(IID_PPV_ARGS(folder));
+        fv->Release();
+    }
+    view->Release();
+    return out;
+}
+
+bool TrySelect(IShellBrowser* browser, const std::wstring& folderPath, const std::wstring& name) {
+    IShellFolder* folder = nullptr;
+    const std::wstring shown = ViewFolder(browser, &folder);
+    bool done = false;
+    if (folder && _wcsicmp(shown.c_str(), folderPath.c_str()) == 0) {
+        PIDLIST_RELATIVE child = nullptr;
+        if (SUCCEEDED(folder->ParseDisplayName(nullptr, nullptr, const_cast<LPWSTR>(name.c_str()), nullptr, &child, nullptr)) && child) {
+            IShellView* view = nullptr;
+            if (SUCCEEDED(browser->QueryActiveShellView(&view)) && view) {
+                done = SUCCEEDED(view->SelectItem(child, SVSI_SELECT | SVSI_DESELECTOTHERS | SVSI_ENSUREVISIBLE | SVSI_FOCUSED));
+                IFolderView* fv = nullptr;
+                int selected = 0;
+                if (done && SUCCEEDED(view->QueryInterface(IID_PPV_ARGS(&fv)))) {
+                    fv->ItemCount(SVGIO_SELECTION, &selected);
+                    fv->Release();
+                    done = selected > 0;
+                }
+                view->Release();
+            }
+            ILFree(child);
+        }
+    }
+    if (folder) folder->Release();
+    return done;
+}
+
+void CALLBACK SelectTimer(HWND, UINT, UINT_PTR id, DWORD) {
+    PendingSelect p;
+    {
+        std::lock_guard<std::mutex> g(g_selectLock);
+        auto it = g_selects.find(id);
+        if (it == g_selects.end()) {
+            KillTimer(nullptr, id);
+            return;
+        }
+        p = it->second;
+    }
+    bool finished = false;
+    try {
+        finished = TrySelect(p.browser, p.folder, p.name);
+    } catch (...) {
+        finished = true;
+    }
+    std::lock_guard<std::mutex> g(g_selectLock);
+    auto it = g_selects.find(id);
+    if (it == g_selects.end()) return;
+    if (finished || --it->second.tries <= 0) {
+        KillTimer(nullptr, id);
+        it->second.browser->Release();
+        g_selects.erase(it);
+        InterlockedDecrement(&g_dllRefs);
+    }
+}
+
+void SelectWhenShown(IShellBrowser* browser, const std::wstring& folder, const std::wstring& name) {
+    const UINT_PTR id = SetTimer(nullptr, 0, 100, SelectTimer);
+    if (!id) return;
+    browser->AddRef();
+    InterlockedIncrement(&g_dllRefs);  // the DLL stays loaded until the timer is done
+    std::lock_guard<std::mutex> g(g_selectLock);
+    g_selects[id] = {browser, folder, name, 50};
+}
+
 // ---- The right-click menu: Open and Copy ----
 
-enum { kCmdOpen, kCmdCopy, kCmdCount };
+enum { kCmdOpen, kCmdCopy, kCmdWinnerCopy, kCmdWinnerGoTo, kCmdWinnerWindow, kCmdWinnerMenu, kCmdCount };
 
 class Menu final : public IContextMenu, public IObjectWithSite {
 public:
@@ -826,6 +984,7 @@ public:
         SetMenuDefaultItem(menu, first + kCmdOpen, FALSE);
         if (flags & CMF_DEFAULTONLY) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, kCmdOpen + 1);
         InsertMenuW(menu, index + 1, MF_BYPOSITION | MF_STRING, first + kCmdCopy, L"&Copy");
+        AddWinnerMenu(menu, index + 2, first);
         return MAKE_HRESULT(SEVERITY_SUCCESS, 0, kCmdCount);
     }
 
@@ -847,10 +1006,18 @@ public:
             }
             if (command == kCmdCopy) return Copy();
             if (command == kCmdOpen) return Open(info->hwnd);
+            if (command == kCmdWinnerCopy || command == kCmdWinnerGoTo || command == kCmdWinnerWindow) return Winner(info->hwnd, command);
             return E_INVALIDARG;
         });
     }
     IFACEMETHODIMP GetCommandString(UINT_PTR command, UINT type, UINT*, CHAR* out, UINT size) override {
+        if (command == kCmdWinnerCopy || command == kCmdWinnerGoTo || command == kCmdWinnerWindow) {
+            if (type != GCS_HELPTEXTW) return E_NOTIMPL;  // no canonical verbs
+            const wchar_t* help = command == kCmdWinnerCopy   ? L"Copies the path of the copy the game loads."
+                                  : command == kCmdWinnerGoTo ? L"Shows the copy the game loads in this window."
+                                                              : L"Shows the copy the game loads in a new window.";
+            return StringCchCopyW(reinterpret_cast<LPWSTR>(out), size, help);
+        }
         const wchar_t* verb = command == kCmdOpen ? L"open" : command == kCmdCopy ? L"copy" : nullptr;
         if (!verb) return E_INVALIDARG;
         if (type == GCS_VERBW) return StringCchCopyW(reinterpret_cast<LPWSTR>(out), size, verb);
@@ -863,6 +1030,86 @@ private:
         if (site_) site_->Release();
         folder_->Release();
         InterlockedDecrement(&g_dllRefs);
+    }
+
+    // "Winner" > Copy path, Go to, New window: one file, in an archive in the game's Data folder.
+    void AddWinnerMenu(HMENU menu, UINT index, UINT first) {
+        if (!folder_->InData() || nodes_.size() != 1 || folder_->GetArchive()->At(nodes_[0]).dir()) return;
+        target_ = WinnerTarget();
+        HMENU sub = CreatePopupMenu();
+        if (!sub) return;
+        const UINT state = target_.empty() ? MF_GRAYED : 0;
+        if (target_.empty()) AppendMenuW(sub, MF_STRING | MF_GRAYED, 0, winnerNote_.c_str());
+        AppendMenuW(sub, MF_STRING | state, first + kCmdWinnerCopy, L"Copy path");
+        AppendMenuW(sub, MF_STRING | state, first + kCmdWinnerGoTo, L"Go to");
+        AppendMenuW(sub, MF_STRING | state, first + kCmdWinnerWindow, L"New window");
+        MENUITEMINFOW mii{sizeof(mii)};
+        mii.fMask = MIIM_STRING | MIIM_SUBMENU | MIIM_ID;
+        mii.wID = first + kCmdWinnerMenu;
+        mii.hSubMenu = sub;
+        mii.dwTypeData = const_cast<wchar_t*>(L"Winner");
+        if (!InsertMenuItemW(menu, index, TRUE, &mii)) DestroyMenu(sub);
+    }
+
+    // The full path of the copy the game loads: the loose file, or the file inside
+    // the winning archive (<x.bsa>\<path>, as Explorer shows it). Empty with a note
+    // when there is none.
+    std::wstring WinnerTarget() {
+        const int node = nodes_[0];
+        const WinnerResult r = folder_->WinnerOf(node);
+        switch (r.kind) {
+            case WinnerResult::Loose: return r.path;
+            case WinnerResult::Archive: return r.path + L"\\" + folder_->GetArchive()->RelativePath(node);
+            case WinnerResult::None: winnerNote_ = L"The game doesn't load this file"; return {};
+            default: {
+                auto plan = DataWinners::ForArchive(folder_->GetArchive()->Path());
+                winnerNote_ = plan && !plan->Why().empty() ? plan->Why() : L"The winner can't be established";
+                return {};
+            }
+        }
+    }
+
+    HRESULT Winner(HWND hwnd, int command) {
+        if (target_.empty()) target_ = WinnerTarget();
+        if (target_.empty()) return E_FAIL;
+        if (command == kCmdWinnerCopy) return CopyText(hwnd, target_);
+        if (command == kCmdWinnerGoTo && SUCCEEDED(GoTo(target_))) return S_OK;
+        // A new window, or no window to navigate (the desktop, a dialog).
+        const std::wstring args = L"/select,\"" + target_ + L"\"";
+        HINSTANCE h = ShellExecuteW(hwnd, L"open", L"explorer.exe", args.c_str(), nullptr, SW_SHOWNORMAL);
+        return reinterpret_cast<INT_PTR>(h) > 32 ? S_OK : E_FAIL;
+    }
+
+    static HRESULT CopyText(HWND owner, const std::wstring& text) {
+        if (!OpenClipboard(owner)) return HRESULT_FROM_WIN32(GetLastError());
+        HRESULT hr = E_OUTOFMEMORY;
+        const size_t bytes = (text.size() + 1) * sizeof(wchar_t);
+        if (HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE, bytes)) {
+            memcpy(GlobalLock(mem), text.c_str(), bytes);
+            GlobalUnlock(mem);
+            EmptyClipboard();
+            if (SetClipboardData(CF_UNICODETEXT, mem)) hr = S_OK;
+            else GlobalFree(mem);
+        }
+        CloseClipboard();
+        return hr;
+    }
+
+    // Opens the target's folder in this window (Back returns here), then selects the
+    // file once the new view is up.
+    HRESULT GoTo(const std::wstring& target) {
+        IShellBrowser* browser = nullptr;
+        HRESULT hr = site_ ? IUnknown_QueryService(site_, SID_STopLevelBrowser, IID_PPV_ARGS(&browser)) : E_NOINTERFACE;
+        if (FAILED(hr)) return hr;
+        const size_t slash = target.find_last_of(L'\\');
+        const std::wstring parent = target.substr(0, slash), name = target.substr(slash + 1);
+        PIDLIST_ABSOLUTE pidl = nullptr;
+        hr = SHParseDisplayName(parent.c_str(), nullptr, &pidl, 0, nullptr);
+        if (SUCCEEDED(hr)) hr = browser->BrowseObject(pidl, SBSP_SAMEBROWSER | SBSP_ABSOLUTE);
+        if (pidl) ILFree(pidl);
+        if (SUCCEEDED(hr)) SelectWhenShown(browser, parent, name);
+        browser->Release();
+        return hr;
     }
 
     HRESULT Copy() {
@@ -936,6 +1183,7 @@ private:
     Folder* folder_;
     std::vector<int> nodes_;
     IUnknown* site_ = nullptr;
+    std::wstring target_, winnerNote_;
 };
 
 HRESULT MakeMenu(Folder* folder, const std::vector<int>& nodes, REFIID riid, void** ppv) {

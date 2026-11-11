@@ -126,6 +126,118 @@ int Direct(int argc, wchar_t** argv) {
     return 0;
 }
 
+// --winner <dll> <archive> <folder inside it>: the Winner column and menu, through the DLL.
+int WinnerTest(const wchar_t* dllPath, const wchar_t* archive, const wchar_t* inside) {
+    HMODULE dll = LoadLibraryW(dllPath);
+    auto getClassObject = dll ? reinterpret_cast<HRESULT(STDAPICALLTYPE*)(REFCLSID, REFIID, void**)>(GetProcAddress(dll, "DllGetClassObject")) : nullptr;
+    IClassFactory* factory = nullptr;
+    if (!getClassObject || FAILED(getClassObject(pse::kClsidBsaFolder, IID_PPV_ARGS(&factory)))) return 2;
+    LPITEMIDLIST pidl = nullptr;
+    IPersistFolder* persist = nullptr;
+    IShellFolder2* root = nullptr;
+    if (FAILED(SHParseDisplayName(archive, nullptr, &pidl, 0, nullptr)) || FAILED(factory->CreateInstance(nullptr, IID_PPV_ARGS(&persist))) ||
+        FAILED(persist->Initialize(pidl)) || FAILED(persist->QueryInterface(IID_PPV_ARGS(&root))))
+        return 3;
+    IShellFolder2* folder = root;
+    PIDLIST_RELATIVE sub = nullptr;
+    if (*inside) {
+        if (FAILED(root->ParseDisplayName(nullptr, nullptr, const_cast<LPWSTR>(inside), nullptr, &sub, nullptr)) ||
+            FAILED(root->BindToObject(sub, nullptr, IID_PPV_ARGS(&folder))))
+            return 4;
+    }
+    UINT columns = 0;
+    SHCOLSTATEF state = 0;
+    while (SUCCEEDED(folder->GetDefaultColumnState(columns, &state))) ++columns;
+    SHELLDETAILS head{};
+    std::wstring title;
+    if (columns > 3 && SUCCEEDED(folder->GetDetailsOf(nullptr, 3, &head))) {
+        wchar_t b[64];
+        StrRetToBufW(&head.str, nullptr, b, 64);
+        title = b;
+    }
+    wprintf(L"columns %u%s%s\n", columns, title.empty() ? L"" : L", 4th: ", title.c_str());
+    IEnumIDList* e = nullptr;
+    folder->EnumObjects(nullptr, SHCONTF_NONFOLDERS, &e);
+    PITEMID_CHILD item = nullptr;
+    int yes = 0, no = 0, blank = 0;
+    std::vector<PITEMID_CHILD> noItems;
+    while (e && e->Next(1, &item, nullptr) == S_OK) {
+        std::wstring text;
+        SHELLDETAILS d{};
+        if (columns > 3 && SUCCEEDED(folder->GetDetailsOf(item, 3, &d))) {
+            wchar_t b[64];
+            StrRetToBufW(&d.str, item, b, 64);
+            text = b;
+        }
+        VARIANT v;
+        VariantInit(&v);
+        SHCOLUMNID id{};
+        std::wstring ex;
+        if (columns > 3 && SUCCEEDED(folder->MapColumnToSCID(3, &id)) && SUCCEEDED(folder->GetDetailsEx(item, &id, &v)) && v.vt == VT_BSTR) ex = v.bstrVal;
+        VariantClear(&v);
+        if (text != ex) wprintf(L"MISMATCH GetDetailsOf '%s' vs GetDetailsEx '%s'\n", text.c_str(), ex.c_str());
+        if (text == L"Yes") ++yes;
+        else if (text == L"No") {
+            ++no;
+            if (noItems.size() < 3) {
+                noItems.push_back(item);
+                continue;
+            }
+        } else ++blank;
+        CoTaskMemFree(item);
+    }
+    if (e) e->Release();
+    wprintf(L"Yes %d, No %d, blank %d\n", yes, no, blank);
+    // The menu on the first "No" file (or on any file when none is No).
+    if (noItems.empty()) {
+        folder->EnumObjects(nullptr, SHCONTF_NONFOLDERS, &e);
+        if (e && e->Next(1, &item, nullptr) == S_OK) noItems.push_back(item);
+        if (e) e->Release();
+    }
+    for (PITEMID_CHILD it : noItems) {
+        IContextMenu* menu = nullptr;
+        PCUITEMID_CHILD arr[] = {it};
+        if (FAILED(folder->GetUIObjectOf(nullptr, 1, arr, IID_IContextMenu, nullptr, reinterpret_cast<void**>(&menu)))) continue;
+        HMENU m = CreatePopupMenu();
+        menu->QueryContextMenu(m, 0, 1, 0x7FFF, CMF_NORMAL);
+        std::wstring items;
+        for (int i = 0; i < GetMenuItemCount(m); ++i) {
+            wchar_t t[256] = {};
+            GetMenuStringW(m, i, t, 256, MF_BYPOSITION);
+            items += std::wstring(i ? L" | " : L"") + t;
+            if (HMENU s = GetSubMenu(m, i)) {
+                items += L" > [";
+                for (int j = 0; j < GetMenuItemCount(s); ++j) {
+                    wchar_t u[256] = {};
+                    GetMenuStringW(s, j, u, 256, MF_BYPOSITION);
+                    items += std::wstring(j ? L", " : L"") + u + ((GetMenuState(s, j, MF_BYPOSITION) & MF_GRAYED) ? L" (greyed)" : L"");
+                }
+                items += L"]";
+            }
+        }
+        wprintf(L"%s: %s\n", Name(folder, it).c_str(), items.c_str());
+        CMINVOKECOMMANDINFO ici{sizeof(ici)};
+        ici.lpVerb = MAKEINTRESOURCEA(2);  // Winner > Copy path
+        if (SUCCEEDED(menu->InvokeCommand(&ici)) && OpenClipboard(nullptr)) {
+            if (HANDLE h = GetClipboardData(CF_UNICODETEXT)) {
+                wprintf(L"  Copy path: %s\n", static_cast<const wchar_t*>(GlobalLock(h)));
+                GlobalUnlock(h);
+            }
+            CloseClipboard();
+        }
+        DestroyMenu(m);
+        menu->Release();
+        CoTaskMemFree(it);
+    }
+    if (folder != root) folder->Release();
+    if (sub) CoTaskMemFree(sub);
+    root->Release();
+    persist->Release();
+    CoTaskMemFree(pidl);
+    factory->Release();
+    return 0;
+}
+
 int Budget() {
     using namespace pse;
     Check(PaceDelayMs(10, 1, 4) == 0, L"an idle machine isn't slowed");
@@ -1136,6 +1248,7 @@ int wmain(int argc, wchar_t** argv) {
     int rc = 2;
     if (argc >= 4 && !wcscmp(argv[1], L"--direct")) rc = Direct(argc, argv);
     else if (argc == 6 && !wcscmp(argv[1], L"--open")) rc = OpenInside(argv[2], argv[3], argv[4], argv[5]);
+    else if (argc == 5 && !wcscmp(argv[1], L"--winner")) rc = WinnerTest(argv[2], argv[3], argv[4]);
     else if (argc == 5 && !wcscmp(argv[1], L"--explorer")) rc = ExplorerTest(argv[2], argv[3], argv[4]);
     else fwprintf(stderr, L"usage: see the top of bsabrowsetest.cpp\n");
     OleUninitialize();

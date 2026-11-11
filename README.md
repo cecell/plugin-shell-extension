@@ -149,6 +149,17 @@ this option asks for administrator rights once. The rest of the extension is
 installed for your user only. Restart Explorer after installing so it picks up
 the columns.
 
+## Inside BSA archives
+
+With the BSA option installed, a `.bsa` opens in Explorer as a read-only folder: copy or drag files out, open them, and see pictures in the large icon views.
+
+Inside an archive in the game's Data folder (the folder next to `SkyrimSE.exe`) there is also:
+
+- a **Winner** column: **Yes** when this archive's copy of the file is the one the game loads, **No** when a loose file in Data or a later-loading archive overrides it, or the game doesn't load this archive at all;
+- a **Winner** menu on a file: **Copy path** of the copy the game loads, **Go to** it in this window, or open it in a **New window**, with the file selected. That copy is a loose file in Data or a file inside another archive.
+
+The winner follows the game's rules: a loose file in Data always wins; otherwise the archive that loads last wins. Archives load in this order: the archive lists in `Skyrim.ini` / `SkyrimCustom.ini` (the vanilla lists when neither sets one), then each active plugin's `<plugin>.bsa` and `<plugin> - Textures.bsa`, in load order (the base masters, `Skyrim.ccc`, then `plugins.txt`, masters first). These are the same rules [skqe](https://github.com/cecell/skyrim-query-engine) uses. If a plugin's own `.ini` changes the archive lists, the column stays empty, because that isn't modelled.
+
 ## Hardlink menu (optional)
 
 An optional setup task adds **Hardlink** to the right-click menu of every
@@ -293,6 +304,7 @@ Outputs, in `build\`:
 - `WHAM-<version>-setup.exe`: the installer
 - `plugininfo.exe <plugin>...`: prints the same fields, plus a self-check that the records and groups walked add up to the header count
 - `menutest.exe <plugin> [--invoke]`: builds Explorer's right-click menu for a file and checks the item is there (and opens)
+- `winnertest.exe <Data\x.bsa> [limit]`: the archive plan, and which copy wins for each file of x.bsa; `--all <Data\x.bsa>` lists every file of every loaded archive
 - `bsabrowsetest.exe`: walks archives through the BSA folder, and drives it in Windows' real folder view
 - `assetproptest.exe <dll> <file>...`: the same for `.tga` and `.fuz` files, through the asset property handler
 - `proptest.exe <dll> <plugin>...`: loads the property handler from the DLL without registering it, feeds it a file the way Explorer does, and prints every column value
@@ -327,6 +339,7 @@ Debugging switches:
 - `src/hardlink_menu.*`: the optional Hardlink menu on every file (its own COM class, registered only by the setup task)
 - `src/property_handler.*`: the Explorer property handler behind the columns, details pane and tooltip
 - `src/bsa_folder.*`: shows a `.bsa` as a read-only folder in Explorer; files are copied out as virtual files
+- `src/winner.*`: which copy of a file the game loads from its Data folder (load order, archive ranks), for the Winner column and menu
 - `src/tool_menus.*`, `src/tool_windows.*`: the BSA manager submenu and the Hashes dialog
 - `src/bsa_tools.*`: extracting, testing, BSA facts and hashing, with no UI
 - `src/work_budget.*`: one limit on background work across every process; it slows work down as the machine gets busier
