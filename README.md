@@ -236,6 +236,16 @@ full terms.
 
 ## Credits
 
+### xEdit
+
+This project owes an enormous debt to xEdit (TES5Edit / SSEEdit / FO4Edit) and its developers. For years xEdit has been the authority on Bethesda plugin formats, and that team and its contributors have taught me more about this subject than any other source.
+
+No xEdit code was copied into this project. Where our tools do things xEdit also does, we wrote our own implementation in our own way. We used xEdit’s behavior, and in places its source code, as a reference to check that our results were correct. xEdit is licensed under MPL 2.0; this project is licensed under GPL-3.0. This project is not affiliated with or endorsed by the xEdit team. If it ever grows up, it wants to be just like xEdit.
+
+Source: <https://github.com/TES5Edit/TES5Edit>. The #ITM check's rule tables (the subrecords and flags it ignores, the arrays it compares sorted, in `src/itm.cpp`) and the condition functions' parameter types (`src/itm_ctda.inc`) come from xEdit's definitions and stay available under the Mozilla Public License 2.0, a copy of which is in [`LICENSES/MPL-2.0.txt`](LICENSES/MPL-2.0.txt).
+
+### Other software
+
 The installer is built with [Inno Setup](https://jrsoftware.org/),
 Copyright (C) Jordan Russell.
 

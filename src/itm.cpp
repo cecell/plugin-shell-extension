@@ -23,6 +23,9 @@ namespace {
 
 // ---- xEdit's rules (Core\wbDefinitionsTES5.pas / wbDefinitionsCommon.pas,
 // TES5Edit fd1e3602) ---------------------------------------------------------
+// The rule tables below come from xEdit (github.com/TES5Edit/TES5Edit) and stay
+// available under the Mozilla Public License 2.0, https://mozilla.org/MPL/2.0/.
+// See the Credits in README.md and LICENSES/MPL-2.0.txt.
 
 // Subrecords xEdit never compares (cpIgnore).
 const std::set<std::string> kIgnoredSubrecords = {

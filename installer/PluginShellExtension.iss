@@ -85,6 +85,7 @@ Source: "PluginShellExtension.propdesc"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\docs\screenshot.png"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\LICENSES\MPL-2.0.txt"; DestDir: "{app}\LICENSES"; Flags: ignoreversion
 Source: "icon\PluginShellExtension.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
