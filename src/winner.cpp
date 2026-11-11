@@ -223,6 +223,22 @@ bool IsInGameData(const std::wstring& path) {
     return FileExists(dir.substr(0, s2 + 1) + L"SkyrimSE.exe");
 }
 
+bool ActivePluginNames(const std::wstring& dataDir, std::set<std::wstring>* lowerNames) {
+    std::wstring data = dataDir;
+    if (!data.empty() && data.back() != L'\\' && data.back() != L'/') data += L'\\';
+    if (!IsInGameData(data + L"x")) return false;
+    const std::wstring folderName = GameFolderName(data + L"..\\");
+    auto add = [&](const std::wstring& name) {
+        if (FileExists(data + name)) lowerNames->insert(LowerW(name));
+    };
+    for (const wchar_t* n : {L"Skyrim.esm", L"Update.esm", L"Dawnguard.esm", L"HearthFires.esm", L"Dragonborn.esm"}) add(n);
+    for (const std::string& l : ReadLines(data + L"..\\Skyrim.ccc"))
+        if (!l.empty() && l[0] != '#') add(WidenUtf8(l));
+    for (const std::string& l : ReadLines(PluginsTxt(folderName)))
+        if (l.size() > 1 && l[0] == '*') add(WidenUtf8(l.substr(1)));
+    return true;
+}
+
 struct WinnerBuilder {
     static std::shared_ptr<DataWinners> Build(const std::wstring& data, const std::wstring& folderName) {
         const auto t0 = std::chrono::steady_clock::now();

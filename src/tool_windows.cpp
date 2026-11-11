@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "bsa_tools.h"
+#include "dependents.h"
 #include "property_window.h"
 
 extern HINSTANCE g_hInst;
@@ -34,6 +35,8 @@ constexpr UINT_PTR kTimerCopied = 1;
 constexpr wchar_t kHashClass[] = L"PluginShellExtensionHashes";
 constexpr wchar_t kReportClass[] = L"PluginShellExtensionReport";
 constexpr wchar_t kNameClass[] = L"PluginShellExtensionFolderViewName";
+constexpr wchar_t kDependentsClass[] = L"PluginShellExtensionDependents";
+constexpr int IDC_LIST = 205, IDC_COPYLIST = 206;
 constexpr DWORD kDwmUseImmersiveDarkMode = 20;
 
 int Scale(int v, UINT dpi) { return MulDiv(v, static_cast<int>(dpi), 96); }
@@ -725,6 +728,243 @@ private:
     Theme theme_ = CurrentTheme();
 };
 
+// ---- The dependents list ----
+
+class DependentsWindow {
+public:
+    DependentsWindow(std::wstring path, std::wstring png) : path_(std::move(path)), png_(std::move(png)) {
+        name_ = PathFindFileNameW(path_.c_str());
+        list_ = DependentsOf(path_);
+    }
+
+    static void Register() {
+        WNDCLASSEXW wc{sizeof(wc)};
+        wc.lpfnWndProc = &DependentsWindow::StaticProc;
+        wc.hInstance = g_hInst;
+        wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        wc.lpszClassName = kDependentsClass;
+        RegisterClassExW(&wc);
+    }
+
+    HWND Create() {
+        const std::wstring title = name_ + L" dependents";
+        return CreateWindowExW(WS_EX_CONTROLPARENT, kDependentsClass, title.c_str(), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, 0, 0, 100, 100, nullptr, nullptr, g_hInst, this);
+    }
+
+    // One plugin name per line.
+    std::wstring ListText() const {
+        std::wstring text;
+        for (const Dependent& d : list_.plugins) text += d.name + L"\r\n";
+        return text;
+    }
+
+private:
+    static LRESULT CALLBACK StaticProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+        auto* self = reinterpret_cast<DependentsWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+        if (msg == WM_NCCREATE) {
+            self = static_cast<DependentsWindow*>(reinterpret_cast<CREATESTRUCTW*>(lp)->lpCreateParams);
+            self->hwnd_ = hwnd;
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+        }
+        return self ? self->Proc(msg, wp, lp) : DefWindowProcW(hwnd, msg, wp, lp);
+    }
+
+    // The column header draws its text black even in dark mode: colour it here.
+    static LRESULT CALLBACK ListProc(HWND h, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR ref) {
+        if (msg == WM_NOTIFY) {
+            auto* nm = reinterpret_cast<NMHDR*>(lp);
+            if (nm->code == NM_CUSTOMDRAW && nm->hwndFrom == ListView_GetHeader(h)) {
+                auto* cd = reinterpret_cast<NMCUSTOMDRAW*>(lp);
+                if (cd->dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
+                if (cd->dwDrawStage == CDDS_ITEMPREPAINT) {
+                    SetTextColor(cd->hdc, reinterpret_cast<DependentsWindow*>(ref)->theme_.text);
+                    return CDRF_DODEFAULT;
+                }
+            }
+        }
+        if (msg == WM_NCDESTROY) RemoveWindowSubclass(h, &DependentsWindow::ListProc, 1);
+        return DefSubclassProc(h, msg, wp, lp);
+    }
+
+    int S(int v) const { return Scale(v, dpi_); }
+    int Top() const { return S(list_.gameData ? 44 : 64); }
+
+    void Layout() {
+        RECT rc;
+        GetClientRect(hwnd_, &rc);
+        const int bottom = rc.bottom - S(kPad) - S(kButtonH);
+        MoveWindow(listView_, S(kPad), Top(), rc.right - S(2 * kPad), bottom - S(10) - Top(), TRUE);
+        MoveWindow(close_, rc.right - S(kPad) - S(kCompareW), bottom, S(kCompareW), S(kButtonH), TRUE);
+        MoveWindow(copy_, rc.right - S(kPad) - S(2 * kCompareW) - S(8), bottom, S(kCompareW), S(kButtonH), TRUE);
+        RECT lr;
+        GetClientRect(listView_, &lr);
+        ListView_SetColumnWidth(listView_, 0, (std::max)(S(100), static_cast<int>(lr.right) - S(64)));
+    }
+
+    void Fill() {
+        // A list view's first column can't be centred, so Active is added second
+        // and shown first.
+        LVCOLUMNW col{};
+        col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_FMT;
+        col.fmt = LVCFMT_LEFT;
+        col.cx = S(400);
+        col.pszText = const_cast<wchar_t*>(L"Dependents");
+        ListView_InsertColumn(listView_, 0, &col);
+        col.fmt = LVCFMT_CENTER;
+        col.cx = S(64);
+        col.pszText = const_cast<wchar_t*>(L"Active");
+        ListView_InsertColumn(listView_, 1, &col);
+        int order[] = {1, 0};
+        ListView_SetColumnOrderArray(listView_, 2, order);
+        for (size_t i = 0; i < list_.plugins.size(); ++i) {
+            LVITEMW item{};
+            item.mask = LVIF_TEXT;
+            item.iItem = static_cast<int>(i);
+            item.pszText = const_cast<wchar_t*>(list_.plugins[i].name.c_str());
+            ListView_InsertItem(listView_, &item);
+            ListView_SetItemText(listView_, static_cast<int>(i), 1, const_cast<wchar_t*>(list_.plugins[i].active ? L"A" : L"-"));
+        }
+    }
+
+    void CopyList() {
+        const std::wstring text = ListText();
+        if (!OpenClipboard(hwnd_)) return;
+        EmptyClipboard();
+        const size_t bytes = (text.size() + 1) * sizeof(wchar_t);
+        if (HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE, bytes)) {
+            memcpy(GlobalLock(mem), text.c_str(), bytes);
+            GlobalUnlock(mem);
+            if (!SetClipboardData(CF_UNICODETEXT, mem)) GlobalFree(mem);
+        }
+        CloseClipboard();
+        SetWindowTextW(copy_, L"Copied");
+        SetTimer(hwnd_, kTimerCopied, 1500, nullptr);
+    }
+
+    LRESULT Proc(UINT msg, WPARAM wp, LPARAM lp) {
+        switch (msg) {
+            case WM_CREATE: {
+                dpi_ = GetDpiForWindow(hwnd_);
+                theme_ = CurrentTheme();
+                listView_ = CreateWindowExW(0, WC_LISTVIEWW, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_BORDER | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER, 0, 0, 10, 10, hwnd_,
+                                            CtrlId(IDC_LIST), g_hInst, nullptr);
+                ListView_SetExtendedListViewStyle(listView_, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
+                copy_ = CreateWindowExW(0, L"BUTTON", L"Copy list", WS_CHILD | WS_VISIBLE | WS_TABSTOP | (list_.plugins.empty() ? WS_DISABLED : 0), 0, 0, 10, 10, hwnd_, CtrlId(IDC_COPYLIST), g_hInst, nullptr);
+                close_ = CreateWindowExW(0, L"BUTTON", L"Close", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON, 0, 0, 10, 10, hwnd_, CtrlId(IDC_CLOSE), g_hInst, nullptr);
+                font_ = MessageFont(dpi_);
+                LOGFONTW lf{};
+                GetObjectW(font_, sizeof(lf), &lf);
+                lf.lfWeight = FW_SEMIBOLD;
+                lf.lfHeight = MulDiv(lf.lfHeight, 4, 3);
+                bold_ = CreateFontIndirectW(&lf);
+                for (HWND h : {listView_, copy_, close_}) SendMessageW(h, WM_SETFONT, reinterpret_cast<WPARAM>(font_), TRUE);
+                BOOL dark = theme_.dark;
+                DwmSetWindowAttribute(hwnd_, kDwmUseImmersiveDarkMode, &dark, sizeof(dark));
+                for (HWND h : {listView_, copy_, close_}) SetWindowTheme(h, theme_.dark ? L"DarkMode_Explorer" : L"Explorer", nullptr);
+                if (HWND header = ListView_GetHeader(listView_)) SetWindowTheme(header, theme_.dark ? L"DarkMode_ItemsView" : L"Explorer", nullptr);
+                SetWindowSubclass(listView_, &DependentsWindow::ListProc, 1, reinterpret_cast<DWORD_PTR>(this));
+                ListView_SetBkColor(listView_, theme_.inputBack);
+                ListView_SetTextBkColor(listView_, theme_.inputBack);
+                ListView_SetTextColor(listView_, theme_.text);
+                Fill();
+                CenterOnCursorMonitor(hwnd_, S(560), S(520));
+                Layout();
+                if (!png_.empty()) PostMessageW(hwnd_, WM_APP_HASH, 0, 0);
+                return 0;
+            }
+            case WM_APP_HASH:
+                RedrawWindow(hwnd_, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
+                SaveWindowPng(hwnd_, png_, nullptr, nullptr);
+                DestroyWindow(hwnd_);
+                return 0;
+            case WM_TIMER:
+                if (wp == kTimerCopied) {
+                    KillTimer(hwnd_, kTimerCopied);
+                    SetWindowTextW(copy_, L"Copy list");
+                }
+                return 0;
+            case WM_SIZE:
+                Layout();
+                InvalidateRect(hwnd_, nullptr, FALSE);
+                return 0;
+            case WM_GETMINMAXINFO: {
+                auto* mm = reinterpret_cast<MINMAXINFO*>(lp);
+                mm->ptMinTrackSize = {S(360), S(260)};
+                return 0;
+            }
+            case WM_ERASEBKGND:
+                return 1;
+            case WM_PAINT: {
+                PAINTSTRUCT ps;
+                HDC dc = BeginPaint(hwnd_, &ps);
+                PaintHeading(dc);
+                EndPaint(hwnd_, &ps);
+                return 0;
+            }
+            case WM_PRINTCLIENT:
+                PaintHeading(reinterpret_cast<HDC>(wp));
+                return 0;
+            case WM_COMMAND:
+                if (LOWORD(wp) == IDC_COPYLIST) CopyList();
+                else if (LOWORD(wp) == IDC_CLOSE || LOWORD(wp) == IDCANCEL || LOWORD(wp) == IDOK) DestroyWindow(hwnd_);
+                return 0;
+            case WM_DESTROY:
+                PostQuitMessage(0);
+                return 0;
+            case WM_NCDESTROY:
+                for (HFONT f : {font_, bold_})
+                    if (f) DeleteObject(f);
+                SetWindowLongPtrW(hwnd_, GWLP_USERDATA, 0);
+                break;
+        }
+        return DefWindowProcW(hwnd_, msg, wp, lp);
+    }
+
+    void PaintHeading(HDC dc) {
+        RECT rc;
+        GetClientRect(hwnd_, &rc);
+        FillBox(dc, rc, theme_.window);
+        SetBkMode(dc, TRANSPARENT);
+        HGDIOBJ old = SelectObject(dc, bold_);
+        SetTextColor(dc, theme_.text);
+        const size_t n = list_.plugins.size();
+        const std::wstring head = !list_.ok ? L"The folder couldn't be read"
+                                  : n == 0  ? L"No plugin in this folder has " + name_ + L" as a master"
+                                            : std::to_wstring(n) + (n == 1 ? L" plugin has " : L" plugins have ") + name_ + L" as a master";
+        RECT r{S(kPad), S(8), rc.right - S(kPad), S(40)};
+        DrawTextW(dc, head.c_str(), -1, &r, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+        if (!list_.gameData) {
+            SelectObject(dc, font_);
+            SetTextColor(dc, theme_.faint);
+            RECT r2{S(kPad), S(38), rc.right - S(kPad), S(58)};
+            DrawTextW(dc, L"Not the game's Data folder, so plugins.txt doesn't apply: none is shown as active.", -1, &r2, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+        }
+        SelectObject(dc, old);
+    }
+
+    std::wstring path_, png_, name_;
+    DependentList list_;
+    HWND hwnd_ = nullptr, listView_ = nullptr, copy_ = nullptr, close_ = nullptr;
+    UINT dpi_ = 96;
+    HFONT font_ = nullptr, bold_ = nullptr;
+    Theme theme_ = CurrentTheme();
+};
+
+int g_dependentsUsers = 0;
+
+struct DependentsArgs {
+    std::wstring path;
+    HMODULE module;
+};
+
+DWORD WINAPI DependentsThread(void* param) {
+    std::unique_ptr<DependentsArgs> a(static_cast<DependentsArgs*>(param));
+    RunDependentsWindow(a->path, L"");
+    HMODULE module = a->module;
+    a.reset();
+    FreeLibraryAndExitThread(module, 0);
+}
+
 // ---- Extract and test, on their own threads ----
 
 class ProgressBox {
@@ -1206,6 +1446,47 @@ void ShowMessageAsync(const std::wstring& title, const std::wstring& text) {
 
 void PapyrusAsync(const std::vector<std::wstring>& paths, bool compile) {
     Start(&PapyrusThread, new ActionArgs{paths, compile}, 64u * 1024 * 1024);
+}
+
+int RunDependentsWindow(const std::wstring& path, const std::wstring& png) {
+    HRESULT co = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    int result = 1;
+    {
+        ActivationContext act;
+        DpiScope dpi;
+        INITCOMMONCONTROLSEX icc{sizeof(icc), ICC_STANDARD_CLASSES | ICC_LISTVIEW_CLASSES};
+        InitCommonControlsEx(&icc);
+        {
+            std::lock_guard<std::mutex> g(g_classLock);
+            if (g_dependentsUsers++ == 0) DependentsWindow::Register();
+        }
+        {
+            DependentsWindow window(path, png);
+            if (HWND hwnd = window.Create()) {
+                ShowWindow(hwnd, png.empty() ? SW_SHOWNORMAL : SW_SHOWNOACTIVATE);
+                if (png.empty()) SetForegroundWindow(hwnd);
+                result = RunLoop(hwnd);
+            }
+            if (!png.empty()) {
+                // Tests read the list as text too.
+                wprintf(L"%s", window.ListText().c_str());
+            }
+        }
+        std::lock_guard<std::mutex> g(g_classLock);
+        if (--g_dependentsUsers == 0) UnregisterClassW(kDependentsClass, g_hInst);
+    }
+    if (SUCCEEDED(co)) CoUninitialize();
+    return result;
+}
+
+void ShowDependentsWindowAsync(const std::wstring& path) {
+    auto* args = new DependentsArgs{path, AddModuleRef()};
+    if (HANDLE t = CreateThread(nullptr, 0, &DependentsThread, args, 0, nullptr)) {
+        CloseHandle(t);
+        return;
+    }
+    if (args->module) FreeLibrary(args->module);
+    delete args;
 }
 
 void ShowHashWindowAsync(const std::wstring& path) {

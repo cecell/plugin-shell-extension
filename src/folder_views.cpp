@@ -46,7 +46,7 @@ const std::vector<PresetDefinition>& PresetDefinitions() {
     static const std::vector<PresetDefinition> presets = {
         {L"Plugins",
          {PSE_COLUMN L"Flags", PSE_COLUMN L"Light", PSE_COLUMN L"ESLable", PSE_COLUMN L"Dirty", PSE_COLUMN L"ItmCount", PSE_COLUMN L"FormCount",
-          PSE_COLUMN L"RecordCount", PSE_COLUMN L"MasterCount", PSE_COLUMN L"Masters", PSE_COLUMN L"DeletedCount", PSE_COLUMN L"DeletedNavmeshes", PSE_COLUMN L"HeaderVersion", PSE_COLUMN L"FormVersion"}},
+          PSE_COLUMN L"RecordCount", PSE_COLUMN L"MasterCount", PSE_COLUMN L"Masters", PSE_COLUMN L"DependentCount", PSE_COLUMN L"DeletedCount", PSE_COLUMN L"DeletedNavmeshes", PSE_COLUMN L"HeaderVersion", PSE_COLUMN L"FormVersion"}},
         {L"Textures",
          {L"System.Image.Dimensions", L"System.Image.HorizontalSize", L"System.Image.VerticalSize", L"System.Image.BitDepth", PSE_COLUMN L"Mipmaps", L"System.Image.HorizontalResolution",
           L"System.Image.VerticalResolution", PSE_COLUMN L"TexFormat", PSE_COLUMN L"TexSrgb", PSE_COLUMN L"TexAlpha", PSE_COLUMN L"TexCubemap"}},

@@ -78,6 +78,7 @@ tooltip** (on by default) makes these fields available in Explorer:
 | Flags | `ESM, ESL, Localized` |
 | Is Light | True / False |
 | #Masters | number of masters |
+| #Dependents | number of plugins in the same folder that have this plugin as a master |
 | #Deleted | deleted placed objects (`REFR`, `ACHR`, `PGRE`, ...), not navmeshes (see Del NAVM), a hint that the plugin may need cleaning; blank when there are none |
 | Del NAVM | how many of those are deleted navmeshes; blank when there are none |
 | #ITM | the ITM record count; blank when there are none, **MissingMaster** when a master is not in the same folder, **Working** while the check runs |
@@ -104,6 +105,10 @@ Columns marked * read the whole file, so they fill in shortly after the folder o
 ### Upgrade header
 
 **Skyrim SE plugins** > **Upgrade header** changes a plugin's header from 1.70 to 1.71, which is only the four bytes of the version number. It needs a plugin of form version 44: anything below that can't be upgraded to 1.71, which is AE.
+
+### List dependents
+
+**Skyrim SE plugins** > **List dependents** lists the plugins in the same folder that have this plugin as a master, one per line, with an **Active** column: **A** when `plugins.txt` (or the base masters and `Skyrim.ccc`) loads it, **-** when it doesn't. Outside the game's Data folder `plugins.txt` doesn't apply, so every plugin shows **-**. **Copy list** copies the plugin names, one per line.
 
 Turn the columns on in Details view: right-click a column header > **More...**.
 
@@ -339,6 +344,7 @@ Debugging switches:
 - `src/hardlink_menu.*`: the optional Hardlink menu on every file (its own COM class, registered only by the setup task)
 - `src/property_handler.*`: the Explorer property handler behind the columns, details pane and tooltip
 - `src/bsa_folder.*`: shows a `.bsa` as a read-only folder in Explorer; files are copied out as virtual files
+- `src/dependents.*`: which plugins in a folder have a given plugin as a master (headers cached per folder), for #Dependents and List dependents
 - `src/winner.*`: which copy of a file the game loads from its Data folder (load order, archive ranks), for the Winner column and menu
 - `src/tool_menus.*`, `src/tool_windows.*`: the BSA manager submenu and the Hashes dialog
 - `src/bsa_tools.*`: extracting, testing, BSA facts and hashing, with no UI

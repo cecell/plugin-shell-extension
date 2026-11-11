@@ -92,9 +92,10 @@ add_library(psetools STATIC
     src/plugin_tools.cpp
     src/asset_facts.cpp
     src/disk_cache.cpp
-    src/winner.cpp)
+    src/winner.cpp
+    src/dependents.cpp)
 target_include_directories(psetools PUBLIC src)
-target_link_libraries(psetools PUBLIC psepattern bsa::reader asset::metadata skqe::papyrus bcrypt advapi32 shell32 ole32 propsys shlwapi)
+target_link_libraries(psetools PUBLIC psecore psepattern bsa::reader asset::metadata skqe::papyrus bcrypt advapi32 shell32 ole32 propsys shlwapi)
 target_link_libraries(psetools PRIVATE nlohmann_json::nlohmann_json)
 
 add_executable(itmcheck tools/itmcheck.cpp)

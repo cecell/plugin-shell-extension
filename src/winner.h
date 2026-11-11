@@ -14,6 +14,7 @@
 #include <windows.h>
 
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -72,5 +73,10 @@ private:
 
 // True when `path` (a file or folder) is directly inside a game Data folder.
 bool IsInGameData(const std::wstring& path);
+
+// The plugins the game loads from `dataDir` (a Data folder, with or without the
+// trailing backslash), lowercase: the base masters, Skyrim.ccc and plugins.txt's
+// active lines, where the file exists. False when `dataDir` isn't a game Data folder.
+bool ActivePluginNames(const std::wstring& dataDir, std::set<std::wstring>* lowerNames);
 
 }  // namespace pse

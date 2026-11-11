@@ -318,6 +318,13 @@ int HashWindow(const wchar_t* dllPath, const wchar_t* file, const wchar_t* png, 
     return run ? run(file, png, script) : 2;
 }
 
+// --dependents <dll> <plugin> <png>: the List dependents window, saved as a picture; the list goes to stdout.
+int DependentsWindowShot(const wchar_t* dllPath, const wchar_t* plugin, const wchar_t* png) {
+    HMODULE dll = LoadLibraryW(dllPath);
+    auto run = dll ? reinterpret_cast<int(__stdcall*)(const wchar_t*, const wchar_t*)>(GetProcAddress(dll, "PseDependentsSnapshot")) : nullptr;
+    return run ? run(plugin, png) : 2;
+}
+
 int ReportWindow(const wchar_t* dllPath, const wchar_t* archive, const wchar_t* png) {
     HMODULE dll = LoadLibraryW(dllPath);
     auto run = dll ? reinterpret_cast<int(__stdcall*)(const wchar_t*, int, const wchar_t*, const wchar_t*)>(GetProcAddress(dll, "PseReportSnapshot")) : nullptr;
@@ -668,6 +675,16 @@ int PluginMenu(const wchar_t* dllPath, const wchar_t* plugin) {
         wprintf(L" [%ls id=%u]", text, GetMenuItemID(sub, i));
     }
     wprintf(L"\n");
+    // Invoking runs Upgrade header, which writes to the plugin: only ever on a
+    // copy in the temp folder, never on a real Data or mod file.
+    wchar_t temp[MAX_PATH] = {};
+    GetTempPathW(ARRAYSIZE(temp), temp);
+    wchar_t full[MAX_PATH * 4] = {};
+    GetFullPathNameW(plugin, ARRAYSIZE(full), full, nullptr);
+    if (_wcsnicmp(full, temp, wcslen(temp)) != 0) {
+        wprintf(L"invoke skipped: %ls is not a copy in %ls\n", full, temp);
+        return 0;
+    }
     CMINVOKECOMMANDINFO info{sizeof(info)};
     info.lpVerb = MAKEINTRESOURCEA(1);
     info.nShow = SW_SHOWNORMAL;
@@ -1243,6 +1260,7 @@ int wmain(int argc, wchar_t** argv) {
     if (argc == 4 && !wcscmp(argv[1], L"--namewindow")) return NameWindowShot(argv[2], argv[3]);
     if (argc == 4 && !wcscmp(argv[1], L"--papyrus")) return PapyrusList(argv[2], argv[3]);
     if (argc == 5 && !wcscmp(argv[1], L"--propswindow")) return PropsWindow(argv[2], argv[3], argv[4]);
+    if (argc == 5 && !wcscmp(argv[1], L"--dependents")) return DependentsWindowShot(argv[2], argv[3], argv[4]);
     if (argc == 5 && !wcscmp(argv[1], L"--reportwindow")) return ReportWindow(argv[2], argv[3], argv[4]);
     OleInitialize(nullptr);
     int rc = 2;

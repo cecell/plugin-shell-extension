@@ -74,6 +74,7 @@ enum PluginPid : DWORD {
     kPidHkxVariables = 59,    // UInt32  .hkx behaviour graph: variables
     kPidHkxClips = 60,        // UInt32  .hkx behaviour graph: clip generators' animations
     kPidHkxAnimations = 61,   // UInt32  .hkx character: the animations it lists
+    kPidDependentCount = 62,  // UInt32  plugins in the same folder that have this one as a master
 };
 
 HRESULT CreatePropertyHandlerFactory(REFIID riid, void** ppv);

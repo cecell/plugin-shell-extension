@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "context_menu.h"
+#include "dependents.h"
 #include "debug_log.h"
 #include "disk_cache.h"
 #include "work_budget.h"
@@ -28,7 +29,7 @@ namespace {
 
 constexpr DWORD kPids[] = {kPidHeaderVersion, kPidRecordCount, kPidFlags, kPidLight,
                            kPidMasterCount,   kPidDeletedCount, kPidEslable, kPidMasters, kPidEslNote,
-                           kPidFormVersion, kPidDeletedNavm, kPidFormCount, kPidItm, kPidDirty, kPidTipStatus};
+                           kPidFormVersion, kPidDeletedNavm, kPidFormCount, kPidItm, kPidDirty, kPidTipStatus, kPidDependentCount};
 
 // The two values that need the full record walk, cached per process so a
 // folder refresh does not rescan every plugin. Keyed by file name, size and
@@ -365,6 +366,8 @@ public:
                 return InitPropVariantFromString(header_.light ? L"True" : L"False", pv);
             case kPidMasterCount:
                 return InitPropVariantFromUInt32(static_cast<ULONG>(header_.masters.size()), pv);
+            case kPidDependentCount:
+                return InitPropVariantFromUInt32(static_cast<ULONG>(DependentCount(path_)), pv);
             case kPidMasters: {
                 // A master missing from the plugin's folder is marked "X ".
                 if (header_.masters.empty()) return S_OK;

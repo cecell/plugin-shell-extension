@@ -24,6 +24,12 @@ void UpgradeHeadersAsync(const std::vector<std::wstring>& paths);
 bool RunFolderViewNameWindow(std::wstring& name, const std::wstring& png);
 void ShowHashWindowAsync(const std::wstring& path);
 
+// The plugins in `path`'s folder that have it as a master: Active (A or -) and name,
+// with a Copy list button. On its own thread.
+void ShowDependentsWindowAsync(const std::wstring& path);
+// Runs it on this thread. With png set, saves a picture and closes.
+int RunDependentsWindow(const std::wstring& path, const std::wstring& png);
+
 // Runs the hash dialog on this thread. With png set, it plays `script` (steps
 // like "copy:0" and "compare:abc", separated by |), saves a picture, and closes.
 int RunHashWindow(const std::wstring& path, const std::wstring& png, const std::wstring& script);

@@ -31,7 +31,11 @@ constexpr wchar_t kPropertiesText[] = L"Plugin properties";
 constexpr wchar_t kUpgradeText[] = L"Upgrade header";
 constexpr wchar_t kHelpText[] = L"Shows the header, masters and record groups of this plugin.";
 constexpr wchar_t kUpgradeHelpText[] = L"Changes a 1.70 plugin header to 1.71.";
-enum { kCommandProperties, kCommandUpgrade, kCommandCount };
+constexpr wchar_t kDependentsVerbW[] = L"pluginshellextensiondependents";
+constexpr char kDependentsVerbA[] = "pluginshellextensiondependents";
+constexpr wchar_t kDependentsText[] = L"List dependents";
+constexpr wchar_t kDependentsHelpText[] = L"Lists the plugins in this folder that have this plugin as a master.";
+enum { kCommandProperties, kCommandUpgrade, kCommandDependents, kCommandCount };
 constexpr size_t kMaxWindows = 16;
 
 bool IsPluginPath(const std::wstring& path) {
@@ -102,6 +106,7 @@ public:
         if (!sub) return E_OUTOFMEMORY;
         AppendMenuW(sub, MF_STRING, idFirst + kCommandUpgrade, kUpgradeText);
         AppendMenuW(sub, MF_STRING, idFirst + kCommandProperties, kPropertiesText);
+        AppendMenuW(sub, MF_STRING, idFirst + kCommandDependents, kDependentsText);
         MENUITEMINFOW mii{sizeof(mii)};
         mii.fMask = MIIM_STRING | MIIM_SUBMENU | MIIM_FTYPE;
         mii.fType = MFT_STRING;
@@ -125,9 +130,11 @@ public:
         if (unicode && !IS_INTRESOURCE(icix->lpVerbW)) {
             if (_wcsicmp(icix->lpVerbW, kVerbW) == 0) command = kCommandProperties;
             else if (_wcsicmp(icix->lpVerbW, kUpgradeVerbW) == 0) command = kCommandUpgrade;
+            else if (_wcsicmp(icix->lpVerbW, kDependentsVerbW) == 0) command = kCommandDependents;
         } else if (!IS_INTRESOURCE(ici->lpVerb)) {
             if (_stricmp(ici->lpVerb, kVerbA) == 0) command = kCommandProperties;
             else if (_stricmp(ici->lpVerb, kUpgradeVerbA) == 0) command = kCommandUpgrade;
+            else if (_stricmp(ici->lpVerb, kDependentsVerbA) == 0) command = kCommandDependents;
         } else {
             command = LOWORD(reinterpret_cast<UINT_PTR>(ici->lpVerb));
         }
@@ -142,6 +149,10 @@ public:
         }
         std::vector<std::wstring> paths = paths_;
         if (paths.size() > kMaxWindows) paths.resize(kMaxWindows);
+        if (command == kCommandDependents) {
+            for (const auto& path : paths) ShowDependentsWindowAsync(path);
+            return S_OK;
+        }
         ShowPropertyWindowsAsync(paths);
         return S_OK;
     }
@@ -149,16 +160,18 @@ public:
     IFACEMETHODIMP GetCommandString(UINT_PTR idCmd, UINT type, UINT*, CHAR* name, UINT cch) override {
         DebugLog(L"GetCommandString id=%zu type=0x%X", idCmd, type);
         if (idCmd >= kCommandCount) return E_INVALIDARG;
-        const bool upgrade = idCmd == kCommandUpgrade;
+        const bool upgrade = idCmd == kCommandUpgrade, dependents = idCmd == kCommandDependents;
         switch (type) {
             case GCS_VERBW:
-                return StringCchCopyW(reinterpret_cast<wchar_t*>(name), cch, upgrade ? kUpgradeVerbW : kVerbW);
+                return StringCchCopyW(reinterpret_cast<wchar_t*>(name), cch, upgrade ? kUpgradeVerbW : dependents ? kDependentsVerbW : kVerbW);
             case GCS_VERBA:
-                return StringCchCopyA(name, cch, upgrade ? kUpgradeVerbA : kVerbA);
+                return StringCchCopyA(name, cch, upgrade ? kUpgradeVerbA : dependents ? kDependentsVerbA : kVerbA);
             case GCS_HELPTEXTW:
-                return StringCchCopyW(reinterpret_cast<wchar_t*>(name), cch, upgrade ? kUpgradeHelpText : kHelpText);
+                return StringCchCopyW(reinterpret_cast<wchar_t*>(name), cch, upgrade ? kUpgradeHelpText : dependents ? kDependentsHelpText : kHelpText);
             case GCS_HELPTEXTA:
-                return StringCchCopyA(name, cch, upgrade ? "Changes a 1.70 plugin header to 1.71." : "Shows the header, masters and record groups of this plugin.");
+                return StringCchCopyA(name, cch, upgrade        ? "Changes a 1.70 plugin header to 1.71."
+                                                 : dependents ? "Lists the plugins in this folder that have this plugin as a master."
+                                                              : "Shows the header, masters and record groups of this plugin.");
             case GCS_VALIDATEW:
             case GCS_VALIDATEA:
                 return S_OK;

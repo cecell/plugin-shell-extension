@@ -34,6 +34,7 @@ const wchar_t* PidName(DWORD pid) {
         case pse::kPidItm: return L"#ITM";
         case pse::kPidDirty: return L"Dirty";
         case pse::kPidTipStatus: return L"(tooltip)";
+        case pse::kPidDependentCount: return L"#Dependents";
     }
     return L"?";
 }

@@ -175,3 +175,4 @@ extern "C" int __stdcall PseFolderViewNameSnapshot(const wchar_t* png) {
     return pse::RunFolderViewNameWindow(name, png) ? 0 : 1;
 }
 extern "C" int __stdcall PseReportSnapshot(const wchar_t* title, int status, const wchar_t* text, const wchar_t* png) { return pse::RunReportWindow(title, status, text, png); }
+extern "C" int __stdcall PseDependentsSnapshot(const wchar_t* plugin, const wchar_t* png) { return pse::RunDependentsWindow(plugin, png); }
