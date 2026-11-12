@@ -116,6 +116,9 @@ target_link_libraries(assetproptest PRIVATE psecore shell32 ole32 shlwapi propsy
 add_executable(bsabrowsetest tools/bsabrowsetest.cpp)
 target_link_libraries(bsabrowsetest PRIVATE psecore psetools shell32 ole32 shlwapi user32)
 
+add_executable(locktest tools/locktest.cpp)
+target_link_libraries(locktest PRIVATE psecore shell32 ole32 propsys psapi)
+
 add_executable(winnertest tools/winnertest.cpp)
 target_link_libraries(winnertest PRIVATE psetools)
 

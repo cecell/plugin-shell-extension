@@ -3,6 +3,8 @@
 #include <propsys.h>
 #include <propvarutil.h>
 #include <shlobj.h>
+#include <shlwapi.h>
+#include <exdisp.h>
 #include <shobjidl.h>
 
 #include <deque>
@@ -137,15 +139,24 @@ DWORD WINAPI ItmWorker(void* module) {
     Sleep(250);
     for (;;) {
         std::pair<std::wstring, std::wstring> job;
+        bool stop = false, last = false;
         {
             std::lock_guard<std::mutex> c(g_cacheLock);
             // Stop when the queue is empty, or when the setting was lowered.
             if (g_itmQueue.empty() || g_itmWorkers > g_itmWorkersWanted) {
                 --g_itmWorkers;
-                break;
+                stop = true;
+                last = g_itmWorkers == 0 && g_itmQueue.empty();
+            } else {
+                job = std::move(g_itmQueue.begin()->second);  // the smallest plugin
+                g_itmQueue.erase(g_itmQueue.begin());
             }
-            job = std::move(g_itmQueue.begin()->second);  // the smallest plugin
-            g_itmQueue.erase(g_itmQueue.begin());
+        }
+        if (stop) {
+            // Nothing left to check: unmap the masters, so Explorer doesn't keep
+            // them locked. A check that starts later maps them again.
+            if (last) ReleaseItmMasters();
+            break;
         }
         {
             WorkSlot slot(WorkKind::Background);  // shared with every other job in every process
@@ -205,17 +216,55 @@ bool IsPluginName(const std::wstring& name) {
     return ext == L".esp" || ext == L".esm" || ext == L".esl";
 }
 
+// Whether any Explorer window or tab shows `dir` (with its trailing backslash).
+// Any failure counts as "no": the watcher then stops, and starts again the next
+// time Explorer asks about a plugin in that folder.
+bool FolderShownInExplorer(const std::wstring& dir) {
+    IShellWindows* windows = nullptr;
+    if (FAILED(CoCreateInstance(CLSID_ShellWindows, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&windows)))) return false;
+    bool shown = false;
+    long count = 0;
+    windows->get_Count(&count);
+    for (long i = 0; i < count && !shown; ++i) {
+        VARIANT v;
+        VariantInit(&v);
+        v.vt = VT_I4;
+        v.lVal = i;
+        IDispatch* disp = nullptr;
+        if (FAILED(windows->Item(v, &disp)) || !disp) continue;
+        IWebBrowser2* browser = nullptr;
+        if (SUCCEEDED(disp->QueryInterface(IID_PPV_ARGS(&browser)))) {
+            BSTR url = nullptr;
+            if (SUCCEEDED(browser->get_LocationURL(&url)) && url) {
+                wchar_t path[MAX_PATH * 4] = {};
+                DWORD len = ARRAYSIZE(path);
+                if (SUCCEEDED(PathCreateFromUrlW(url, path, &len, 0))) {
+                    std::wstring shownDir = path;
+                    if (!shownDir.empty() && shownDir.back() != L'\\') shownDir += L'\\';
+                    shown = _wcsicmp(shownDir.c_str(), dir.c_str()) == 0;
+                }
+                SysFreeString(url);
+            }
+            browser->Release();
+        }
+        disp->Release();
+    }
+    windows->Release();
+    return shown;
+}
+
 DWORD WINAPI WatchThread(void* param) {
     std::unique_ptr<std::wstring> dir(static_cast<std::wstring*>(param));
     SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
+    const HRESULT co = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     HANDLE h = CreateFileW(dir->c_str(), FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                            nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, nullptr);
     if (h == INVALID_HANDLE_VALUE) return 0;
     HANDLE ev = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     std::vector<uint8_t> buf(64 * 1024);
     std::set<std::wstring> changed;  // lower paths, waiting for the save to settle
-    bool overflow = false;
-    for (;;) {
+    bool overflow = false, done = false;
+    while (!done) {
         OVERLAPPED ov{};
         ov.hEvent = ev;
         ResetEvent(ev);
@@ -227,8 +276,21 @@ DWORD WINAPI WatchThread(void* param) {
         }
         // Wait for changes; once some came in, 1.5 s of quiet means the save
         // (xEdit writes a temporary file, then renames it) is finished.
+        // With nothing pending, look every 30 s whether a window still shows the
+        // folder: the open handle stops the folder (and the folders above it)
+        // from being renamed or deleted, so it is let go once nothing shows it.
         bool quiet = false;
-        while (WaitForSingleObject(ev, changed.empty() && !overflow ? INFINITE : 1500) == WAIT_TIMEOUT) {
+        for (;;) {
+            const bool idle = changed.empty() && !overflow;
+            if (WaitForSingleObject(ev, idle ? 30000 : 1500) != WAIT_TIMEOUT) break;
+            if (idle) {
+                if (FolderShownInExplorer(*dir)) continue;
+                CancelIoEx(h, &ov);
+                DWORD ignored = 0;
+                GetOverlappedResult(h, &ov, &ignored, TRUE);
+                done = true;
+                break;
+            }
             quiet = true;
             std::vector<std::wstring> refresh;
             {
@@ -245,6 +307,7 @@ DWORD WINAPI WatchThread(void* param) {
             }
         }
         (void)quiet;
+        if (done) break;
         DWORD bytes = 0;
         if (!GetOverlappedResult(h, &ov, &bytes, FALSE)) break;
         if (bytes == 0) {  // too many changes to list: refresh everything known
@@ -261,6 +324,12 @@ DWORD WINAPI WatchThread(void* param) {
     }
     CloseHandle(ev);
     CloseHandle(h);
+    {
+        std::lock_guard<std::mutex> g(g_watchLock);
+        g_watchedDirs.erase(LowerPath(*dir));  // the next ask about this folder watches it again
+    }
+    DebugLog(L"watchdog: stopped watching %s", dir->c_str());
+    if (SUCCEEDED(co)) CoUninitialize();
     return 0;
 }
 

@@ -64,11 +64,29 @@ struct Node {
     bool dir() const { return entry < 0; }
 };
 
+class Archive;
+void StartArchiveJanitor();
+
+// The archive is only kept open while it is being read: a mapping held inside
+// explorer.exe would stop other programs from replacing or rewriting the file,
+// and Explorer keeps folder objects alive long after their window closes. The
+// tree of names is kept; the file is opened again when a file is read, and
+// closed after kIdleMs without use.
 class Archive {
 public:
-    static std::shared_ptr<Archive> Open(const std::wstring& path, HRESULT* hr) {
+    static constexpr ULONGLONG kIdleMs = 10000;
+
+    static std::mutex& Registry(std::map<std::wstring, std::weak_ptr<Archive>>** open) {
         static std::mutex lock;
-        static std::map<std::wstring, std::weak_ptr<Archive>> open;
+        static std::map<std::wstring, std::weak_ptr<Archive>> map;
+        *open = &map;
+        return lock;
+    }
+
+    static std::shared_ptr<Archive> Open(const std::wstring& path, HRESULT* hr) {
+        std::map<std::wstring, std::weak_ptr<Archive>>* openPtr = nullptr;
+        std::mutex& lock = Registry(&openPtr);
+        auto& open = *openPtr;
         WIN32_FILE_ATTRIBUTE_DATA fa{};
         if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &fa)) {
             *hr = HRESULT_FROM_WIN32(GetLastError());
@@ -83,10 +101,15 @@ public:
         }
         auto made = std::make_shared<Archive>();
         made->path_ = path;
-        if (made->reader_.open(std::filesystem::path(path)) != bsa::Status::Ok || !made->Build()) {
-            *hr = HRESULT_FROM_WIN32(ERROR_BAD_FORMAT);
-            return nullptr;
-        }
+        made->stamp_ = Stamp(fa);
+        {
+            bsa::Reader reader;
+            if (reader.open(std::filesystem::path(path)) != bsa::Status::Ok || !made->Build(reader)) {
+                *hr = HRESULT_FROM_WIN32(ERROR_BAD_FORMAT);
+                return nullptr;
+            }
+            made->header_ = reader.header();
+        }  // closed again until a file is read
         open[key] = made;
         for (auto it = open.begin(); it != open.end();) it = it->second.expired() ? open.erase(it) : std::next(it);
         *hr = S_OK;
@@ -95,8 +118,43 @@ public:
 
     const Node& At(int i) const { return nodes_[i]; }
     int NodeCount() const { return static_cast<int>(nodes_.size()); }
-    const bsa::Reader& Reader() const { return reader_; }
+    const bsa::Header& Header() const { return header_; }
     const std::wstring& Path() const { return path_; }
+
+    // Runs f(const bsa::Reader&) with the archive open. False when it can't be
+    // opened, or the file is no longer the one the names came from.
+    template <typename F>
+    bool WithReader(F&& f) const {
+        bool opened = false;
+        {
+            std::lock_guard<std::mutex> g(lock_);
+            if (!reader_) {
+                WIN32_FILE_ATTRIBUTE_DATA fa{};
+                if (!GetFileAttributesExW(path_.c_str(), GetFileExInfoStandard, &fa) || Stamp(fa) != stamp_) return false;
+                auto r = std::make_unique<bsa::Reader>();
+                if (r->open(std::filesystem::path(path_)) != bsa::Status::Ok) return false;
+                reader_ = std::move(r);
+                opened = true;
+            }
+            lastUse_ = GetTickCount64();
+            f(*reader_);
+            lastUse_ = GetTickCount64();
+        }
+        // Outside lock_: the janitor takes the registry lock, then lock_.
+        if (opened) StartArchiveJanitor();
+        return true;
+    }
+
+    // Closes the file if it hasn't been used for kIdleMs. True while it is still open.
+    bool CloseIfIdle() const {
+        std::lock_guard<std::mutex> g(lock_);
+        if (reader_ && GetTickCount64() - lastUse_ >= kIdleMs) reader_.reset();
+        return reader_ != nullptr;
+    }
+    bool IsOpen() const {
+        std::lock_guard<std::mutex> g(lock_);
+        return reader_ != nullptr;
+    }
 
     int Child(int node, const wchar_t* name) const {
         const auto& kids = nodes_[node].children;
@@ -111,24 +169,34 @@ public:
     }
 
     uint64_t Size(int node) const {
+        if (nodes_[node].dir()) return 0;
         uint32_t size = 0;
-        bsa::Entry e;
-        if (nodes_[node].dir() || reader_.entry(static_cast<uint32_t>(nodes_[node].entry), e) != bsa::Status::Ok ||
-            reader_.uncompressed_size(e, size) != bsa::Status::Ok)
-            return 0;
+        WithReader([&](const bsa::Reader& r) {
+            bsa::Entry e;
+            if (r.entry(static_cast<uint32_t>(nodes_[node].entry), e) != bsa::Status::Ok || r.uncompressed_size(e, size) != bsa::Status::Ok) size = 0;
+        });
         return size;
     }
 
     bool Read(int node, std::vector<uint8_t>* out) const {
-        bsa::Entry e;
-        return !nodes_[node].dir() && reader_.entry(static_cast<uint32_t>(nodes_[node].entry), e) == bsa::Status::Ok &&
-               reader_.read(e, *out, size_t{0xFFFFFFFF}) == bsa::Status::Ok;
+        if (nodes_[node].dir()) return false;
+        bool ok = false;
+        WithReader([&](const bsa::Reader& r) {
+            bsa::Entry e;
+            ok = r.entry(static_cast<uint32_t>(nodes_[node].entry), e) == bsa::Status::Ok && r.read(e, *out, size_t{0xFFFFFFFF}) == bsa::Status::Ok;
+        });
+        return ok;
     }
 
     size_t Skipped() const { return skipped_; }
 
 private:
-    bool Build() {
+    static std::wstring Stamp(const WIN32_FILE_ATTRIBUTE_DATA& fa) {
+        return std::to_wstring(fa.nFileSizeLow) + L"|" + std::to_wstring(fa.nFileSizeHigh) + L"|" + std::to_wstring(fa.ftLastWriteTime.dwLowDateTime) + L"|" +
+               std::to_wstring(fa.ftLastWriteTime.dwHighDateTime);
+    }
+
+    bool Build(const bsa::Reader& reader_) {
         nodes_.emplace_back();
         std::unordered_map<std::wstring, int> dirs;
         dirs[L""] = 0;
@@ -186,12 +254,58 @@ private:
         return true;
     }
 
-    std::wstring path_;
-    bsa::Reader reader_;
+    std::wstring path_, stamp_;
+    bsa::Header header_;
     std::vector<Node> nodes_;
     size_t skipped_ = 0;
+    mutable std::mutex lock_;
+    mutable std::unique_ptr<bsa::Reader> reader_;
+    mutable ULONGLONG lastUse_ = 0;
 };
 
 using ArchivePtr = std::shared_ptr<Archive>;
+
+inline bool g_archiveJanitorRunning = false;  // guarded by the registry lock
+
+// One thread closes idle archives every few seconds, and ends once none is open.
+inline DWORD WINAPI ArchiveJanitorThread(void* module) {
+    for (;;) {
+        Sleep(2000);
+        std::vector<std::shared_ptr<Archive>> live;
+        std::map<std::wstring, std::weak_ptr<Archive>>* open = nullptr;
+        {
+            std::lock_guard<std::mutex> g(Archive::Registry(&open));
+            for (auto& [key, weak] : *open)
+                if (auto a = weak.lock()) live.push_back(std::move(a));
+        }
+        for (const auto& a : live) a->CloseIfIdle();
+        live.clear();
+        // Stop only if nothing is open, checked under the lock StartArchiveJanitor takes,
+        // so an archive opened meanwhile either is seen here or starts a new janitor.
+        std::lock_guard<std::mutex> g(Archive::Registry(&open));
+        bool any = false;
+        for (auto& [key, weak] : *open)
+            if (auto a = weak.lock()) any = any || a->IsOpen();
+        if (!any) {
+            g_archiveJanitorRunning = false;
+            break;
+        }
+    }
+    FreeLibraryAndExitThread(static_cast<HMODULE>(module), 0);
+}
+
+inline void StartArchiveJanitor() {
+    std::map<std::wstring, std::weak_ptr<Archive>>* open = nullptr;
+    std::lock_guard<std::mutex> g(Archive::Registry(&open));
+    if (g_archiveJanitorRunning) return;
+    HMODULE module = nullptr;  // the thread keeps the DLL loaded until it ends
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&ArchiveJanitorThread), &module);
+    if (HANDLE t = CreateThread(nullptr, 0, &ArchiveJanitorThread, module, 0, nullptr)) {
+        CloseHandle(t);
+        g_archiveJanitorRunning = true;
+    } else if (module) {
+        FreeLibrary(module);
+    }
+}
 
 }  // namespace pse

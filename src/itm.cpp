@@ -616,6 +616,11 @@ bool ReadVersion(const PluginFile& f, size_t offset, const PatternCatalog& cat, 
 }
 
 // Masters stay loaded between checks (Explorer checks every plugin in a
+// folder against the same few masters), until ReleaseItmMasters. Keyed by
+// path, size and write time.
+std::mutex g_masterLock;
+std::vector<std::pair<std::wstring, std::shared_ptr<const PluginFile>>> g_masterCache;  // most recent last
+// Masters stay loaded between checks (Explorer checks every plugin in a
 // folder against the same few masters). Keyed by path, size and write time.
 std::shared_ptr<const PluginFile> LoadMaster(const std::wstring& path, const std::string& name) {
     WIN32_FILE_ATTRIBUTE_DATA fa{};
@@ -624,8 +629,8 @@ std::shared_ptr<const PluginFile> LoadMaster(const std::wstring& path, const std
                        L"|" + std::to_wstring(fa.ftLastWriteTime.dwLowDateTime) + L"|" +
                        std::to_wstring(fa.ftLastWriteTime.dwHighDateTime);
     for (auto& c : key) c = static_cast<wchar_t>(towlower(c));
-    static std::mutex lock;
-    static std::vector<std::pair<std::wstring, std::shared_ptr<const PluginFile>>> cache;  // most recent last
+    std::mutex& lock = g_masterLock;
+    auto& cache = g_masterCache;
     constexpr size_t kCacheSize = 8;
     {
         std::lock_guard<std::mutex> g(lock);
@@ -896,6 +901,12 @@ std::vector<std::string> ExplainItm(const std::wstring& pluginPath, const Patter
     if (!s.plugin.Find(formId, &at)) return {"no such record"};
     if (s.Compare(at, &why)) why.push_back("ITM");
     return why;
+}
+
+void ReleaseItmMasters() {
+    // A check still running keeps its own reference, so its mapping lives until it ends.
+    std::lock_guard<std::mutex> g(g_masterLock);
+    g_masterCache.clear();
 }
 
 }  // namespace pse

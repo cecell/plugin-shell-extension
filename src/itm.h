@@ -30,6 +30,10 @@ struct ItmResult {
 // Masters are looked up in the plugin's own folder.
 ItmResult FindItms(const std::wstring& pluginPath, const PatternCatalog& catalog);
 
+// Masters stay memory-mapped between checks, which locks them against being
+// replaced. Call this when a batch of checks is done to unmap them all.
+void ReleaseItmMasters();
+
 // Test hook: look for masters in this folder instead of next to the plugin.
 void SetItmMastersFolder(const std::wstring& folder);
 

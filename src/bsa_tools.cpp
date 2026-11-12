@@ -197,7 +197,7 @@ BsaFacts ReadBsaFacts(const std::wstring& path, const std::atomic<bool>* cancel)
             f.error = L"This file can't be read as a BSA archive.";
             return f;
         }
-        const bsa::Header& h = archive->Reader().header();
+        const bsa::Header& h = archive->Header();
         f.version = h.version;
         f.archiveFlags = h.archiveFlags;
         f.fileFlags = h.fileFlags;
@@ -210,23 +210,34 @@ BsaFacts ReadBsaFacts(const std::wstring& path, const std::atomic<bool>* cancel)
         std::unordered_map<std::wstring, size_t> byExtension;
         for (size_t k = 0; k < KindRules().size(); ++k)
             for (const wchar_t* e : KindRules()[k].extensions) byExtension[e] = k;
-        for (uint32_t i = 0; i < h.fileCount; ++i) {
-            if (cancel && cancel->load()) return f;
-            slot.Pace();
-            bsa::Entry e;
-            std::string_view name;
-            uint32_t size = 0;
-            if (archive->Reader().entry(i, e) != bsa::Status::Ok) continue;
-            f.compressedFiles += e.compressed;
-            if (archive->Reader().uncompressed_size(e, size) == bsa::Status::Ok) f.unpackedBytes += size;
-            if (archive->Reader().file_name(e, name) != bsa::Status::Ok) continue;
-            const std::wstring wide = Widen(name);
-            auto it = byExtension.find(Extension(wide));
-            ++f.kinds[it == byExtension.end() ? f.kinds.size() - 1 : it->second].count;
-            if (size > f.largestBytes) {
-                f.largestBytes = size;
-                f.largestName = wide;
+        bool cancelled = false;
+        const bool opened = archive->WithReader([&](const bsa::Reader& reader) {
+            for (uint32_t i = 0; i < h.fileCount; ++i) {
+                if (cancel && cancel->load()) {
+                    cancelled = true;
+                    return;
+                }
+                slot.Pace();
+                bsa::Entry e;
+                std::string_view name;
+                uint32_t size = 0;
+                if (reader.entry(i, e) != bsa::Status::Ok) continue;
+                f.compressedFiles += e.compressed;
+                if (reader.uncompressed_size(e, size) == bsa::Status::Ok) f.unpackedBytes += size;
+                if (reader.file_name(e, name) != bsa::Status::Ok) continue;
+                const std::wstring wide = Widen(name);
+                auto it = byExtension.find(Extension(wide));
+                ++f.kinds[it == byExtension.end() ? f.kinds.size() - 1 : it->second].count;
+                if (size > f.largestBytes) {
+                    f.largestBytes = size;
+                    f.largestName = wide;
+                }
             }
+        });
+        if (cancelled) return f;
+        if (!opened) {
+            f.error = L"This file can't be read as a BSA archive.";
+            return f;
         }
         f.ok = true;
     } catch (const std::exception&) {
