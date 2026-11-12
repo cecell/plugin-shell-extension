@@ -56,9 +56,16 @@ WizardStyle=modern dynamic
 Compression=lzma2/max
 SolidCompression=yes
 ChangesAssociations=yes
-; Explorer keeps the DLL loaded; the [Code] section moves it aside instead of
-; asking the user to close Explorer.
-CloseApplications=no
+; Explorer keeps the DLL loaded, and loading the same path again gives back
+; that old copy, so a new version only runs after Explorer restarts. Restart
+; Manager does it: setup closes Explorer (and anything else using the DLL)
+; before copying, and restarts it afterwards, reopening its folder windows.
+; If that is declined or fails, the [Code] section still moves the old DLL
+; aside so the install succeeds; the new version then runs after the next
+; Explorer restart or sign-in.
+CloseApplications=yes
+CloseApplicationsFilter=*.dll
+RestartApplications=yes
 OutputDir={#OutDir}
 OutputBaseFilename=WHAM-{#AppVersion}-setup
 UninstallDisplayName={#AppName}
@@ -231,6 +238,41 @@ end;
 // be renamed. Move it aside so the new copy (or the uninstall) can proceed;
 // the leftover is removed by the next install or when it is no longer loaded.
 
+// Restart Manager only looks at the files setup replaces. A DLL an earlier
+// install moved aside (PluginShellExtension.*.old) may still be the copy
+// Explorer runs, so those count too: Explorer is then closed and restarted.
+procedure RegisterExtraCloseApplicationsResources;
+var
+  Found: TFindRec;
+begin
+  if FindFirst(ExpandConstant('{app}\PluginShellExtension.*.old'), Found) then begin
+    try
+      repeat
+        RegisterExtraCloseApplicationsResource(ExpandConstant('{app}\') + Found.Name);
+      until not FindNext(Found);
+    finally
+      FindClose(Found);
+    end;
+  end;
+end;
+
+// DLLs earlier installs moved aside: deleted once nothing has them loaded
+// (after Restart Manager closed Explorer, that is now). One still in use stays.
+procedure DeleteOldCopies;
+var
+  Found: TFindRec;
+begin
+  if FindFirst(ExpandConstant('{app}\PluginShellExtension.*.old'), Found) then begin
+    try
+      repeat
+        DeleteFile(ExpandConstant('{app}\') + Found.Name);
+      until not FindNext(Found);
+    finally
+      FindClose(Found);
+    end;
+  end;
+end;
+
 procedure MoveAside(const Path, Dir: String);
 var
   Target: String;
@@ -343,8 +385,10 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssInstall then
+  if CurStep = ssInstall then begin
+    DeleteOldCopies;
     MoveAside(ExpandConstant('{app}\PluginShellExtension.dll'), ExpandConstant('{app}'));
+  end;
   if CurStep = ssPostInstall then begin
     if WizardIsTaskSelected('columns') then begin
       if not RunColumnsRegistration(True) then
