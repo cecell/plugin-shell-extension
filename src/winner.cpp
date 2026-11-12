@@ -228,14 +228,31 @@ bool ActivePluginNames(const std::wstring& dataDir, std::set<std::wstring>* lowe
     if (!data.empty() && data.back() != L'\\' && data.back() != L'/') data += L'\\';
     if (!IsInGameData(data + L"x")) return false;
     const std::wstring folderName = GameFolderName(data + L"..\\");
+    // Explorer asks once per plugin: the set is kept until plugins.txt,
+    // Skyrim.ccc or the Data folder's list of files changes.
+    const std::wstring stamp = Stamp(PluginsTxt(folderName)) + L"|" + Stamp(data + L"..\\Skyrim.ccc") + L"|" + Stamp(data.substr(0, data.size() - 1));
+    static std::mutex lock;
+    static std::map<std::wstring, std::pair<std::wstring, std::set<std::wstring>>> cache;  // data -> (stamp, names)
+    {
+        std::lock_guard<std::mutex> g(lock);
+        auto it = cache.find(LowerW(data));
+        if (it != cache.end() && it->second.first == stamp) {
+            *lowerNames = it->second.second;
+            return true;
+        }
+    }
+    std::set<std::wstring> names;
     auto add = [&](const std::wstring& name) {
-        if (FileExists(data + name)) lowerNames->insert(LowerW(name));
+        if (FileExists(data + name)) names.insert(LowerW(name));
     };
     for (const wchar_t* n : {L"Skyrim.esm", L"Update.esm", L"Dawnguard.esm", L"HearthFires.esm", L"Dragonborn.esm"}) add(n);
     for (const std::string& l : ReadLines(data + L"..\\Skyrim.ccc"))
         if (!l.empty() && l[0] != '#') add(WidenUtf8(l));
     for (const std::string& l : ReadLines(PluginsTxt(folderName)))
         if (l.size() > 1 && l[0] == '*') add(WidenUtf8(l.substr(1)));
+    *lowerNames = names;
+    std::lock_guard<std::mutex> g(lock);
+    cache[LowerW(data)] = {stamp, std::move(names)};
     return true;
 }
 

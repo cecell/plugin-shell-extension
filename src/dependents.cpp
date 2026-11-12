@@ -128,6 +128,25 @@ DependentList DependentsOf(const std::wstring& pluginPath) {
     return out;
 }
 
+MasterState MasterStateOf(const std::wstring& pluginPath, const std::vector<std::wstring>& masters) {
+    MasterState s;
+    const std::wstring dir = pluginPath.substr(0, pluginPath.find_last_of(L"\\/") + 1);
+    std::set<std::wstring> active;
+    s.gameData = ActivePluginNames(dir, &active);
+    for (const auto& m : masters) {
+        if (GetFileAttributesW((dir + m).c_str()) == INVALID_FILE_ATTRIBUTES) s.missing.push_back(m);
+        else if (s.gameData && !active.count(Lower(m))) s.inactive.push_back(m);
+    }
+    return s;
+}
+
+std::wstring MasterStatusText(const MasterState& state, size_t masterCount) {
+    if (masterCount == 0) return L"";
+    if (!state.missing.empty()) return L"Missing";
+    if (!state.gameData) return L"";
+    return state.inactive.empty() ? L"All active" : L"Not active";
+}
+
 size_t DependentCount(const std::wstring& pluginPath) {
     const size_t slash = pluginPath.find_last_of(L"\\/");
     if (slash == std::wstring::npos) return 0;

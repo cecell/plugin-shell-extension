@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "debug_log.h"
+#include "dependents.h"
 #include "property_window.h"
 #include "registration.h"
 #include "tool_windows.h"
@@ -106,7 +107,15 @@ public:
         if (!sub) return E_OUTOFMEMORY;
         AppendMenuW(sub, MF_STRING, idFirst + kCommandUpgrade, kUpgradeText);
         AppendMenuW(sub, MF_STRING, idFirst + kCommandProperties, kPropertiesText);
-        AppendMenuW(sub, MF_STRING, idFirst + kCommandDependents, kDependentsText);
+        // Greyed when no selected plugin has a dependent.
+        bool anyDependents = false;
+        for (const auto& p : paths_) {
+            if (DependentCount(p) > 0) {
+                anyDependents = true;
+                break;
+            }
+        }
+        AppendMenuW(sub, MF_STRING | (anyDependents ? 0 : MF_GRAYED), idFirst + kCommandDependents, anyDependents ? kDependentsText : L"No dependents");
         MENUITEMINFOW mii{sizeof(mii)};
         mii.fMask = MIIM_STRING | MIIM_SUBMENU | MIIM_FTYPE;
         mii.fType = MFT_STRING;

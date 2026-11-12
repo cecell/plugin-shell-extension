@@ -28,7 +28,7 @@
 #define HardlinkMenuKey "Software\Classes\*\shellex\ContextMenuHandlers\PluginShellExtensionHardlink"
 #define P "Cecell.PluginShellExtension."
 ; Details pane (Alt+Shift+P) and hover tooltip contents.
-#define PreviewDetails "prop:" + P + "HeaderVersion;" + P + "FormVersion;" + P + "FormCount;" + P + "RecordCount;" + P + "Flags;" + P + "Light;" + P + "MasterCount;" + P + "DependentCount;" + P + "DeletedCount;" + P + "DeletedNavmeshes;" + P + "ItmCount;" + P + "Dirty;" + P + "ESLable;" + P + "ESLNote;" + P + "Masters;*System.DateModified;*System.Size;*System.DateCreated"
+#define PreviewDetails "prop:" + P + "HeaderVersion;" + P + "FormVersion;" + P + "FormCount;" + P + "RecordCount;" + P + "Flags;" + P + "Light;" + P + "MasterCount;" + P + "MasterStatus;" + P + "DependentCount;" + P + "DeletedCount;" + P + "DeletedNavmeshes;" + P + "ItmCount;" + P + "Dirty;" + P + "ESLable;" + P + "ESLNote;" + P + "Masters;*System.DateModified;*System.Size;*System.DateCreated"
 #define InfoTip "prop:System.ItemTypeText;System.Size;System.DateModified;" + P + "FormCount;" + P + "TipStatus;" + P + "Masters;" + P + "ESLNote"
 #define TgaDetails "prop:System.ItemTypeText;System.Size;System.DateModified;System.Image.Dimensions;System.Image.BitDepth"
 #define FuzDetails "prop:System.ItemTypeText;System.Size;System.DateModified;System.Media.Duration;System.Audio.EncodingBitrate;" + P + "SampleRate;" + P + "Channels;" + P + "AudioFormat;" + P + "FuzVersion;" + P + "HasLip;" + P + "LipVersion;" + P + "LipUnits"

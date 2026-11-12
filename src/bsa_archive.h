@@ -196,16 +196,16 @@ private:
                std::to_wstring(fa.ftLastWriteTime.dwHighDateTime);
     }
 
-    bool Build(const bsa::Reader& reader_) {
+    bool Build(const bsa::Reader& reader) {
         nodes_.emplace_back();
         std::unordered_map<std::wstring, int> dirs;
         dirs[L""] = 0;
-        const uint32_t count = reader_.header().fileCount;
+        const uint32_t count = reader.header().fileCount;
         for (uint32_t i = 0; i < count; ++i) {
             bsa::Entry e;
             std::string_view folder, name;
-            if (reader_.entry(i, e) != bsa::Status::Ok || reader_.folder_name(e.folderIndex, folder) != bsa::Status::Ok ||
-                reader_.file_name(e, name) != bsa::Status::Ok) {
+            if (reader.entry(i, e) != bsa::Status::Ok || reader.folder_name(e.folderIndex, folder) != bsa::Status::Ok ||
+                reader.file_name(e, name) != bsa::Status::Ok) {
                 ++skipped_;
                 continue;
             }

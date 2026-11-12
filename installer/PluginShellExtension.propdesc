@@ -133,6 +133,14 @@
       <displayInfo displayType="Number" defaultColumnWidth="8" alignment="Right"/>
     </propertyDescription>
 
+    <!-- All active / Not active (all present, not all active in plugins.txt) / Missing (a master isn't in the folder). -->
+    <propertyDescription name="Cecell.PluginShellExtension.MasterStatus" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="63">
+      <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="32"/>
+      <labelInfo label="MasterStatus"/>
+      <typeInfo type="String" isInnate="true" isViewable="true" isQueryable="true"/>
+      <displayInfo displayType="String" defaultColumnWidth="10"/>
+    </propertyDescription>
+
     <propertyDescription name="Cecell.PluginShellExtension.Dirty" formatID="{14E162A8-957D-4913-B1DD-86439C188DC6}" propID="15">
       <searchInfo inInvertedIndex="false" isColumn="true" columnIndexType="OnDisk" maxSize="32"/>
       <labelInfo label="Dirty"/>

@@ -31,7 +31,7 @@ namespace {
 
 constexpr DWORD kPids[] = {kPidHeaderVersion, kPidRecordCount, kPidFlags, kPidLight,
                            kPidMasterCount,   kPidDeletedCount, kPidEslable, kPidMasters, kPidEslNote,
-                           kPidFormVersion, kPidDeletedNavm, kPidFormCount, kPidItm, kPidDirty, kPidTipStatus, kPidDependentCount};
+                           kPidFormVersion, kPidDeletedNavm, kPidFormCount, kPidItm, kPidDirty, kPidTipStatus, kPidDependentCount, kPidMasterStatus};
 
 // The two values that need the full record walk, cached per process so a
 // folder refresh does not rescan every plugin. Keyed by file name, size and
@@ -437,6 +437,10 @@ public:
                 return InitPropVariantFromUInt32(static_cast<ULONG>(header_.masters.size()), pv);
             case kPidDependentCount:
                 return InitPropVariantFromUInt32(static_cast<ULONG>(DependentCount(path_)), pv);
+            case kPidMasterStatus: {
+                const std::wstring status = MasterStatusText(MasterStateOf(path_, header_.masters), header_.masters.size());
+                return status.empty() ? S_OK : InitPropVariantFromString(status.c_str(), pv);
+            }
             case kPidMasters: {
                 // A master missing from the plugin's folder is marked "X ".
                 if (header_.masters.empty()) return S_OK;

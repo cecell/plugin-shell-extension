@@ -31,6 +31,8 @@ Requires Windows 10 or 11, 64-bit.
 | Author - CNAM | the author field, wrapped |
 | Description - SNAM | the description field, wrapped, line breaks kept |
 | Masters | one per line as `[index] name`; the index is the FormID prefix that refers to that master |
+| Deactivated masters | masters that are in the folder but not active in `plugins.txt` (game Data folder only), or None |
+| Missing masters | masters that aren't in the plugin's folder, or None |
 | Record types | each top-level group with its record count, alphabetical: `CELL (2943), STAT (11), ...`. A group's count includes everything nested in it, so `CELL` includes its placed references and `DIAL` its `INFO`s |
 | Deleted forms | deleted placed objects and navmeshes by type, `REFR (93), NAVM (5)`, or "None". These are the types xEdit's Quick Auto Clean deals with (`REFR`, `ACHR`, `PGRE`, `PMIS`, `PARW`, `PBAR`, `PBEA`, `PCON`, `PFLA`, `PHZD`) plus `NAVM` |
 | Deleted Navmeshes | how many of the deleted forms are navmeshes (`NAVM`); xEdit cannot undelete these |
@@ -79,6 +81,7 @@ tooltip** (on by default) makes these fields available in Explorer:
 | Is Light | True / False |
 | #Masters | number of masters |
 | #Dependents | number of plugins in the same folder that have this plugin as a master |
+| MasterStatus | **All active** when every master is active in `plugins.txt`, **Not active** when all are present but some aren't active, **Missing** when a master isn't in the plugin's folder; blank for plugins with no masters. Outside the game's Data folder only **Missing** is shown |
 | #Deleted | deleted placed objects (`REFR`, `ACHR`, `PGRE`, ...), not navmeshes (see Del NAVM), a hint that the plugin may need cleaning; blank when there are none |
 | Del NAVM | how many of those are deleted navmeshes; blank when there are none |
 | #ITM | the ITM record count; blank when there are none, **MissingMaster** when a master is not in the same folder, **Working** while the check runs |
@@ -108,7 +111,7 @@ Columns marked * read the whole file, so they fill in shortly after the folder o
 
 ### List dependents
 
-**Skyrim SE plugins** > **List dependents** lists the plugins in the same folder that have this plugin as a master, one per line, with an **Active** column: **A** when `plugins.txt` (or the base masters and `Skyrim.ccc`) loads it, **-** when it doesn't. Outside the game's Data folder `plugins.txt` doesn't apply, so every plugin shows **-**. **Copy list** copies the plugin names, one per line.
+**Skyrim SE plugins** > **List dependents** lists the plugins in the same folder that have this plugin as a master, one per line, with an **Active** column: **A** when `plugins.txt` (or the base masters and `Skyrim.ccc`) loads it, **-** when it doesn't. Outside the game's Data folder `plugins.txt` doesn't apply, so every plugin shows **-**. **Copy list** copies the plugin names, one per line. When no plugin in the folder has it as a master, the item reads **No dependents** and is greyed out.
 
 Turn the columns on in Details view: right-click a column header > **More...**.
 

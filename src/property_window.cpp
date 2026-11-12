@@ -1,3 +1,4 @@
+#include "dependents.h"
 #include "property_window.h"
 
 #include <commctrl.h>
@@ -1091,6 +1092,18 @@ private:
                 masters += L"[" + std::to_wstring(i) + L"] " + header_.masters[i];
             }
             row(L"Masters", masters);
+            if (!header_.masters.empty()) {
+                const MasterState ms = MasterStateOf(path_, header_.masters);
+                auto lines = [](const std::vector<std::wstring>& names) {
+                    std::wstring s;
+                    for (const auto& n : names) s += (s.empty() ? L"" : L"\r\n") + n;
+                    return s.empty() ? std::wstring(L"None") : s;
+                };
+                row(L"Deactivated masters", ms.gameData ? lines(ms.inactive) : L"Not the game's Data folder");
+                rows.back().tip = L"Masters that are in the folder but not active in plugins.txt.";
+                row(L"Missing masters", lines(ms.missing));
+                rows.back().tip = L"Masters that aren't in the plugin's folder.";
+            }
 
             // "TYPE (n), TYPE (n), ..." with a no-break space so a type never
             // wraps away from its count.
