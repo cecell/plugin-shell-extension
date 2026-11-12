@@ -57,15 +57,12 @@ Compression=lzma2/max
 SolidCompression=yes
 ChangesAssociations=yes
 ; Explorer keeps the DLL loaded, and loading the same path again gives back
-; that old copy, so a new version only runs after Explorer restarts. Restart
-; Manager does it: setup closes Explorer (and anything else using the DLL)
-; before copying, and restarts it afterwards, reopening its folder windows.
-; If that is declined or fails, the [Code] section still moves the old DLL
-; aside so the install succeeds; the new version then runs after the next
-; Explorer restart or sign-in.
-CloseApplications=yes
-CloseApplicationsFilter=*.dll
-RestartApplications=yes
+; that old copy, so a new version only runs after Explorer restarts.
+; Installing doesn't need Explorer closed: the [Code] section moves the loaded
+; DLL aside. Explorer is restarted afterwards instead, and only Explorer (see
+; RestartExplorer below): Restart Manager here would also try to close every
+; other program that loaded the DLL, such as Everything, and fail.
+CloseApplications=no
 OutputDir={#OutDir}
 OutputBaseFilename=WHAM-{#AppVersion}-setup
 UninstallDisplayName={#AppName}
@@ -238,26 +235,24 @@ end;
 // be renamed. Move it aside so the new copy (or the uninstall) can proceed;
 // the leftover is removed by the next install or when it is no longer loaded.
 
-// Restart Manager only looks at the files setup replaces. A DLL an earlier
-// install moved aside (PluginShellExtension.*.old) may still be the copy
-// Explorer runs, so those count too: Explorer is then closed and restarted.
-procedure RegisterExtraCloseApplicationsResources;
-var
-  Found: TFindRec;
-begin
-  if FindFirst(ExpandConstant('{app}\PluginShellExtension.*.old'), Found) then begin
-    try
-      repeat
-        RegisterExtraCloseApplicationsResource(ExpandConstant('{app}\') + Found.Name);
-      until not FindNext(Found);
-    finally
-      FindClose(Found);
-    end;
-  end;
-end;
-
 // DLLs earlier installs moved aside: deleted once nothing has them loaded
 // (after Restart Manager closed Explorer, that is now). One still in use stays.
+var
+  WasUpdate: Boolean;
+
+// After an update, Explorer still runs the old DLL: the new DLL restarts
+// Explorer (its processes only) through Restart Manager, which reopens its
+// folder windows. Run as the user, not elevated, like Explorer itself.
+procedure RestartExplorer;
+var
+  Params: String;
+  Code: Integer;
+begin
+  Params := '/s /n /i:restartexplorer "' + ExpandConstant('{app}\PluginShellExtension.dll') + '"';
+  Exec(ExpandConstant('{sys}\regsvr32.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Log(Format('regsvr32 %s -> code=%d', [Params, Code]));
+end;
+
 procedure DeleteOldCopies;
 var
   Found: TFindRec;
@@ -386,6 +381,7 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then begin
+    WasUpdate := FileExists(ExpandConstant('{app}\PluginShellExtension.dll'));
     DeleteOldCopies;
     MoveAside(ExpandConstant('{app}\PluginShellExtension.dll'), ExpandConstant('{app}'));
   end;
@@ -416,6 +412,10 @@ begin
     if not WizardIsTaskSelected('hardlink') then begin  // unticked on an update: remove it
       RegDeleteKeyIncludingSubkeys(HKA, '{#HardlinkMenuKey}');
       RegDeleteKeyIncludingSubkeys(HKA, '{#HardlinkClsidKey}');
+    end;
+    if WasUpdate then begin
+      RestartExplorer;
+      DeleteOldCopies;  // Explorer has let go of the old DLL now
     end;
   end;
 end;

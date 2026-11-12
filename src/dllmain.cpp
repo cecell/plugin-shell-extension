@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "restart_explorer.h"
 #include "context_menu.h"
 #include "debug_log.h"
 #include "hardlink_menu.h"
@@ -104,6 +105,13 @@ STDAPI DllUnregisterServer() { return pse::UnregisterHandler(HKEY_CURRENT_USER);
 // property handler and schema (Explorer columns, details pane, tooltip); add
 // /u to remove them. The .propdesc must sit next to the DLL.
 STDAPI DllInstall(BOOL install, PCWSTR cmdLine) {
+    // regsvr32 /s /n /i:restartexplorer PluginShellExtension.dll: setup runs it
+    // after an update, so Explorer loads the new DLL (it keeps the old one loaded).
+    if (cmdLine && _wcsicmp(cmdLine, L"restartexplorer") == 0) {
+        if (!install) return S_OK;
+        const HRESULT hr = pse::RestartExplorer();
+        return SUCCEEDED(hr) ? S_OK : hr;
+    }
     if (cmdLine && _wcsicmp(cmdLine, L"columns") == 0) {
         std::wstring dll = ModulePath();
         std::wstring schema = dll.substr(0, dll.find_last_of(L'\\') + 1) + pse::kSchemaFileName;

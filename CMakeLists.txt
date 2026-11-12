@@ -61,6 +61,7 @@ add_library(PluginShellExtension SHARED
     src/asset_property_handler.cpp
     src/file_property_handler.cpp
     src/bsa_folder.cpp
+    src/restart_explorer.cpp
     src/tool_menus.cpp
     src/folder_views_menu.cpp
     src/tool_windows.cpp
