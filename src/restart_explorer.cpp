@@ -1,62 +1,90 @@
 // Restarts Windows Explorer after an update, so the new DLL is the one it
-// loads. Restart Manager closes Explorer gracefully and starts it again with
-// its folder windows. Only Explorer's own processes are touched: other programs
-// that load the DLL (Everything's right-click menu, for one) keep their copy
-// until they restart, which the install doesn't need.
+// loads. Restart Manager proved unreliable for the shell (a long wait, then no
+// taskbar), so this does what Task Manager's "Restart" does, more gently:
+//  1. asks the shell to exit, as Ctrl+Shift+right-click on the taskbar > Exit
+//     Explorer does, so it saves its state;
+//  2. waits up to 5 s, then ends any Explorer process of this session left
+//     (folder windows in their own process, a shell that didn't exit);
+//  3. starts explorer.exe again and waits for the taskbar.
+// Other programs that load the DLL (Everything's right-click menu, for one)
+// keep their copy until they restart.
 #include "restart_explorer.h"
 
-#include <restartmanager.h>
+#include <tlhelp32.h>
 
 #include <string>
 #include <vector>
 
-#pragma comment(lib, "rstrtmgr.lib")
-
 namespace pse {
+namespace {
+
+constexpr UINT kExitExplorer = WM_USER + 436;  // what "Exit Explorer" sends to the taskbar
+
+bool Elevated() {
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return false;
+    TOKEN_ELEVATION e{};
+    DWORD size = 0;
+    const bool elevated = GetTokenInformation(token, TokenElevation, &e, sizeof(e), &size) && e.TokenIsElevated;
+    CloseHandle(token);
+    return elevated;
+}
+
+// Explorer processes in this user's session.
+std::vector<DWORD> ExplorerProcesses() {
+    std::vector<DWORD> out;
+    DWORD mySession = 0;
+    ProcessIdToSessionId(GetCurrentProcessId(), &mySession);
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE) return out;
+    PROCESSENTRY32W pe{sizeof(pe)};
+    for (BOOL ok = Process32FirstW(snap, &pe); ok; ok = Process32NextW(snap, &pe)) {
+        DWORD session = 0;
+        if (_wcsicmp(pe.szExeFile, L"explorer.exe") == 0 && ProcessIdToSessionId(pe.th32ProcessID, &session) && session == mySession)
+            out.push_back(pe.th32ProcessID);
+    }
+    CloseHandle(snap);
+    return out;
+}
+
+bool WaitFor(ULONGLONG ms, bool (*done)()) {
+    const ULONGLONG start = GetTickCount64();
+    while (GetTickCount64() - start < ms) {
+        if (done()) return true;
+        Sleep(100);
+    }
+    return done();
+}
+
+}  // namespace
 
 HRESULT RestartExplorer() {
-    wchar_t windows[MAX_PATH] = {};
-    if (!GetWindowsDirectoryW(windows, MAX_PATH)) return HRESULT_FROM_WIN32(GetLastError());
-    const std::wstring explorer = std::wstring(windows) + L"\\explorer.exe";
+    // An elevated setup would start an elevated Explorer: leave it alone, the
+    // new version then runs after the next sign-in or Explorer restart.
+    if (Elevated()) return S_FALSE;
+    HWND tray = FindWindowW(L"Shell_TrayWnd", nullptr);
+    if (!tray) return S_FALSE;  // no shell running here: nothing to restart
 
-    // Which processes are Explorer: asking about explorer.exe also lists System
-    // (critical, which would make a shutdown fail), so keep only RmExplorer.
-    std::vector<RM_UNIQUE_PROCESS> shells;
-    {
-        DWORD session = 0;
-        WCHAR key[CCH_RM_SESSION_KEY + 1] = {};
-        if (RmStartSession(&session, 0, key) != ERROR_SUCCESS) return E_FAIL;
-        LPCWSTR files[] = {explorer.c_str()};
-        UINT needed = 0, count = 0;
-        DWORD reasons = 0;
-        std::vector<RM_PROCESS_INFO> infos;
-        if (RmRegisterResources(session, 1, files, 0, nullptr, 0, nullptr) == ERROR_SUCCESS) {
-            DWORD r = RmGetList(session, &needed, &count, nullptr, &reasons);
-            if (r == ERROR_MORE_DATA && needed) {
-                infos.resize(needed);
-                count = needed;
-                r = RmGetList(session, &needed, &count, infos.data(), &reasons);
-                infos.resize(r == ERROR_SUCCESS ? count : 0);
-            }
+    PostMessageW(tray, kExitExplorer, 0, 0);
+    WaitFor(5000, [] { return ExplorerProcesses().empty(); });
+    for (DWORD pid : ExplorerProcesses()) {
+        if (HANDLE p = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, pid)) {
+            TerminateProcess(p, 0);
+            WaitForSingleObject(p, 3000);
+            CloseHandle(p);
         }
-        RmEndSession(session);
-        for (const auto& p : infos)
-            if (p.ApplicationType == RmExplorer) shells.push_back(p.Process);
     }
-    if (shells.empty()) return S_FALSE;  // Explorer isn't running: nothing to do
 
-    DWORD session = 0;
-    WCHAR key[CCH_RM_SESSION_KEY + 1] = {};
-    if (RmStartSession(&session, 0, key) != ERROR_SUCCESS) return E_FAIL;
-    DWORD r = RmRegisterResources(session, 0, nullptr, static_cast<UINT>(shells.size()), shells.data(), 0, nullptr);
-    if (r == ERROR_SUCCESS) {
-        r = RmShutdown(session, 0, nullptr);  // graceful: Explorer saves its windows
-        // Restart even after a partial shutdown, so the desktop always comes back.
-        const DWORD restarted = RmRestart(session, 0, nullptr);
-        if (r == ERROR_SUCCESS) r = restarted;
-    }
-    RmEndSession(session);
-    return r == ERROR_SUCCESS ? S_OK : HRESULT_FROM_WIN32(r);
+    wchar_t windows[MAX_PATH] = {};
+    GetWindowsDirectoryW(windows, MAX_PATH);
+    std::wstring cmd = L"\"" + std::wstring(windows) + L"\\explorer.exe\"";
+    STARTUPINFOW si{sizeof(si)};
+    PROCESS_INFORMATION pi{};
+    if (!CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, 0, nullptr, windows, &si, &pi)) return HRESULT_FROM_WIN32(GetLastError());
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    // Back once the taskbar is.
+    return WaitFor(15000, [] { return FindWindowW(L"Shell_TrayWnd", nullptr) != nullptr; }) ? S_OK : S_FALSE;
 }
 
 }  // namespace pse

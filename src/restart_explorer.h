@@ -4,9 +4,11 @@
 
 namespace pse {
 
-// Closes Windows Explorer and starts it again (Restart Manager, Explorer's
-// processes only). S_FALSE when Explorer isn't running. Used by setup after an
-// update: regsvr32 /s /n /i:restartexplorer PluginShellExtension.dll
+// Exits Windows Explorer (as "Exit Explorer" on the taskbar does), ends any
+// Explorer process of this session still left after 5 s, starts explorer.exe
+// again and waits for the taskbar. S_FALSE when there was no shell to restart,
+// when running elevated, or when the taskbar didn't come back within 15 s.
+// Used by setup after an update: regsvr32 /s /n /i:restartexplorer PluginShellExtension.dll
 HRESULT RestartExplorer();
 
 }  // namespace pse
